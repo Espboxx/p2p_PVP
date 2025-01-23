@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "express": "^4.21.2",
+    "nvm": "^0.0.4",
     "socket.io": "^4.8.1"
   }
 }
