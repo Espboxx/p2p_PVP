@@ -121,8 +121,8 @@
       font-size: 1rem;
     }
 
-    /* 文件区域响应式调整 */
-    .file-area {
+     /* 文件区域响应式调整 */
+     .file-area {
       flex-wrap: wrap;
       padding: 8px;
     }
@@ -133,10 +133,13 @@
     }
 
     /* 移动端特定样式 */
-    @media (max-width: 768px) {
+    @media (max-width: 868px) {
       .sidebar-wrapper {
         transform: translateX(0);
         transition: transform 0.3s ease;
+        position: absolute!important;
+        z-index: 1000!important;
+        height: 100%;
       }
 
       .sidebar {
@@ -237,10 +240,7 @@
     }
 
     .sidebar.collapsed {
-      width: 0;
-      min-width: 0;
-      padding: 0;
-      overflow: hidden;
+      transform: translateX(-100%);
     }
 
     .sidebar h3 {
@@ -333,25 +333,6 @@
 
     .hidden {
       display: none;
-    }
-
-    .file-area {
-      align-items: center;
-      padding: 5px 0;
-      border-top: 1px solid #eee;
-    }
-
-    #fileInput {
-      flex: 1;
-      padding: 5px;
-    }
-
-    #sendFileBtn {
-      background: #28a745;
-    }
-
-    #sendFileBtn:hover {
-      background: #218838;
     }
 
     /* 添加样式以支持文件消息 */
@@ -508,6 +489,10 @@
       color: white;
       cursor: pointer;
       border-radius: 0 4px 4px 0;
+      transition: all 0.3s ease;
+    }
+    .sidebar-toggle.collapsed {
+      transform: translateX(-250px);
     }
 
     /* 添加拖拽区域样式 */
@@ -588,9 +573,6 @@
       </div>
     </div>
   </div>
-
-  <!-- 添加遮罩层 -->
-  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <!-- 添加拖拽覆盖层 -->
   <div class="drag-overlay" id="dragOverlay">

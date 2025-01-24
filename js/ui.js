@@ -12,21 +12,13 @@ let sidebarCollapsed = false;
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
   const toggleButton = document.getElementById('sidebarToggle');
-  const overlay = document.getElementById('sidebarOverlay');
   
   sidebarCollapsed = !sidebarCollapsed;
   
   sidebar.classList.toggle('collapsed');
+  toggleButton.classList.toggle('collapsed');
   toggleButton.textContent = sidebarCollapsed ? '⟩' : '⟨';
   
-  // 移动端遮罩层处理
-  if (window.innerWidth <= 768) {
-    if (!sidebarCollapsed) {
-      overlay.classList.add('active');
-    } else {
-      overlay.classList.remove('active');
-    }
-  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -49,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 监听窗口大小变化
   window.addEventListener('resize', () => {
     const overlay = document.getElementById('sidebarOverlay');
-    if (window.innerWidth > 768) {
+    if (window.innerWidth > 868) {
       overlay.classList.remove('active');
     }
   });
