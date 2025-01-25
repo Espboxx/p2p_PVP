@@ -933,13 +933,14 @@ body {
   }
 }
 
-/* 文件消息样式优化 */
+/* 文件消息样式 */
 .file-message {
   background: var(--input-bg);
   border-radius: 16px;
   padding: 12px;
-  max-width: min(200px, 80vw); /* 根据屏幕宽度动态调整,最大200px */
+  max-width: 320px;
   border: 1px solid var(--tertiary-bg);
+  position: relative;
 }
 
 .message.self .file-message {
@@ -1134,6 +1135,7 @@ body {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
+  margin-top: 8px;
   border-radius: 4px;
   background: var(--primary-color);
   color: white;

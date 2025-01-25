@@ -3,7 +3,7 @@ import { peerConnections } from './webrtc.js';
 import { socket, onlineUsers } from './socket.js';
 import { formatSize, formatSpeed } from './utils.js';
 import { reconnect } from './webrtc.js';
-import { sendFile } from './fileTransfer.js';
+import { sendFile, acceptFileTransfer } from './fileTransfer.js';
 import { fileChunkSize, TransferState } from './config.js';
 import { ongoingTransfers } from './fileTransfer.js';
 
@@ -320,7 +320,7 @@ function updateSystemMessage(message, messageElement) {
   };
 }
 
-// 在 displayMessage 函数中修改系统消息的处理部分
+// 在 displayMessage 函数中修改文件消息的处理部分
 export function displayMessage(message, type = 'text') {
   const messagesDiv = document.getElementById('messages');
   
@@ -400,6 +400,43 @@ export function displayMessage(message, type = 'text') {
       `;
       
       fileContainer.appendChild(fileInfoSection);
+      
+      // 如果是接收到的文件，添加下载按钮
+      if (message.senderId !== socket.id) {
+        const downloadButton = document.createElement('button');
+        downloadButton.className = 'download-button';
+        downloadButton.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+          </svg>
+          接收文件
+        `;
+        downloadButton.onclick = (e) => {
+          e.preventDefault();
+          try {
+            acceptFileTransfer(message.fileId, message.senderId);
+            // 不在这里移除按钮，让 acceptFile 函数处理
+          } catch (error) {
+            console.error('接收文件失败:', error);
+            displayMessage('系统: 接收文件失败', 'system');
+          }
+        };
+        fileContainer.appendChild(downloadButton);
+      }
+      
+      // 添加进度条容器（初始隐藏）
+      const progressContainer = document.createElement('div');
+      progressContainer.className = 'progress-container';
+      progressContainer.style.display = 'none';
+      progressContainer.innerHTML = `
+        <div class="progress-wrapper">
+          <div class="progress-bar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text">0%</div>
+        <div class="transfer-speed"></div>
+      `;
+      fileContainer.appendChild(progressContainer);
+      
       messageRow.appendChild(fileContainer);
       messageElement.appendChild(messageRow);
       
@@ -407,7 +444,6 @@ export function displayMessage(message, type = 'text') {
       if (message.senderId === socket.id) {
         messageElement.classList.add('self');
       }
-      
     } else if (type === 'text') {
       // 判断是否是自己发送的消息
       const isSelf = message.startsWith('我: ');
