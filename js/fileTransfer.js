@@ -20,7 +20,7 @@ export function handleFileTransfer(message, senderId) {
       chunks,
       receivedChunks: 0,
       fileBuffer: new Array(chunks),
-      state: TransferState.WAITING,
+      state: TransferState.DOWNLOADING,
       receivedChunksMap: new Map(),
       senderId,
       startTime: Date.now(),
@@ -35,14 +35,8 @@ export function handleFileTransfer(message, senderId) {
       senderId
     }, 'file');
 
-    const fileMessage = document.getElementById(`file-${fileId}`);
-    if (fileMessage) {
-      const receiveBtn = document.createElement('button');
-      receiveBtn.textContent = '接收';
-      receiveBtn.style.marginLeft = '10px';
-      receiveBtn.onclick = () => acceptFile(fileId, senderId);
-      fileMessage.appendChild(receiveBtn);
-    }
+    // 初始化进度条
+    updateProgressBar(fileId, 0, 'download');
   }
 }
 
@@ -283,89 +277,64 @@ function sendFileChunks(fileId, targetId) {
   }
 }
 
-function completeFileTransfer(fileId) {
+export function completeFileTransfer(fileId) {
   const transfer = ongoingTransfers[fileId];
   if (!transfer) return;
 
   try {
-    // 合并所有文件块
-    const chunks = transfer.fileBuffer.filter(chunk => chunk);
-    if (chunks.length !== transfer.chunks) {
-      throw new Error('文件块不完整');
-    }
-
-    // 计算总大小并创建最终的 ArrayBuffer
-    const totalSize = chunks.reduce((size, chunk) => size + chunk.byteLength, 0);
-    const finalBuffer = new Uint8Array(totalSize);
-    
-    // 按顺序复制所有块
-    let offset = 0;
-    chunks.forEach(chunk => {
-      finalBuffer.set(chunk, offset);
-      offset += chunk.byteLength;
-    });
-
-    // 创建 Blob 对象
-    const blob = new Blob([finalBuffer], { type: transfer.fileType });
+    const blob = new Blob(transfer.fileBuffer, { type: transfer.fileType || 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
-    
-    // 创建下载链接函数
-    const createDownloadLink = () => {
-      const downloadLink = document.createElement('a');
-      downloadLink.href = url;
-      downloadLink.download = transfer.fileName;
-      downloadLink.textContent = '下载文件';
-      downloadLink.className = 'download-button';
-      
-      downloadLink.onclick = (e) => {
-        e.preventDefault();
-        try {
-          const tempLink = document.createElement('a');
-          tempLink.style.display = 'none';
-          tempLink.href = url;
-          tempLink.download = transfer.fileName;
-          document.body.appendChild(tempLink);
-          tempLink.click();
-          document.body.removeChild(tempLink);
-          
-          displayMessage(`系统: 开始下载文件 "${transfer.fileName}"`, 'system');
-          
-          // 创建新的下载链接
-          const fileMessage = document.getElementById(`file-${fileId}`);
-          if (fileMessage) {
-            const oldButton = fileMessage.querySelector('.download-button');
-            if (oldButton) {
-              fileMessage.removeChild(oldButton);
-            }
-            fileMessage.appendChild(createDownloadLink());
-          }
-        } catch (error) {
-          console.error('下载文件失败:', error);
-          displayMessage(`系统: 下载文件失败，请重试`, 'system');
-        }
-      };
-      
-      return downloadLink;
-    };
 
-    // 添加初始下载链接
+    // 创建下载链接
+    const downloadLink = document.createElement('a');
+    downloadLink.href = url;
+    downloadLink.download = transfer.fileName;
+    downloadLink.className = 'download-button';
+    downloadLink.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+      </svg>
+      保存文件
+    `;
+
+    // 更新UI显示
     const fileMessage = document.getElementById(`file-${fileId}`);
     if (fileMessage) {
-      const oldButton = fileMessage.querySelector('.download-button');
-      if (oldButton) {
-        fileMessage.removeChild(oldButton);
+      // 移除进度条
+      const progressContainer = fileMessage.querySelector('.progress-container');
+      if (progressContainer) {
+        progressContainer.remove();
       }
-      fileMessage.appendChild(createDownloadLink());
+
+      // 添加下载按钮
+      const actionContainer = document.createElement('div');
+      actionContainer.className = 'file-action-container';
+      actionContainer.appendChild(downloadLink);
+      fileMessage.appendChild(actionContainer);
+
+      // 添加完成标记
+      const statusBadge = document.createElement('div');
+      statusBadge.className = 'file-status-badge completed';
+      statusBadge.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+        </svg>
+        已完成
+      `;
+      fileMessage.querySelector('.file-info-section').appendChild(statusBadge);
     }
 
+    // 更新传输状态
     transfer.state = TransferState.COMPLETED;
-    displayMessage(`系统: 文件 "${transfer.fileName}" 接收完成`, 'system');
-    
-    // 保存 blob URL 到传输对象中，以便后续使用
     transfer.blobUrl = url;
+    
+    // 自动触发下载
+    downloadLink.click();
     
     // 清理内存
     transfer.fileBuffer = null;
+    
+    displayMessage(`系统: 文件 "${transfer.fileName}" 下载完成`, 'system');
   } catch (error) {
     console.error('处理文件完成时出错:', error);
     displayMessage(`系统: 处理文件失败: ${error.message}`, 'system');

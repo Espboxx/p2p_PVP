@@ -1,0 +1,1104 @@
+/* 基础样式 */
+:root {
+  --primary-color: #5865f2;  /* Discord品牌蓝色 */
+  --primary-dark: #4752c4;
+  --bg-color: #36393f;     /* Discord主背景色 */
+  --secondary-bg: #2f3136; /* Discord侧边栏背景 */
+  --tertiary-bg: #202225; /* Discord深色背景 */
+  --input-bg: #40444b;    /* Discord输入框背景 */
+  --border-color: #202225;
+  --text-color: #dcddde;  /* Discord主文本色 */
+  --text-secondary: #96989d;
+  --text-muted: #72767d;
+  --success-color: #3ba55c;
+  --danger-color: #ed4245;
+  --warning-color: #faa81a;
+  --success-color-dark: #2d9150;
+  --danger-color-dark: #d83c3e;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  color: var(--text-color);
+  background: var(--bg-color);
+}
+
+/* 容器布局 */
+.container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-color);
+  overflow: hidden;
+}
+
+/* 聊天容器布局 */
+.chat-container {
+  flex: 1;
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+}
+
+/* 连接状态样式 */
+#connectionStatus {
+  display: none;
+}
+
+/* 房间操作区域 */
+.room-actions {
+  display: none;
+}
+
+/* 聊天区域样式 */
+.chat-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-color);
+  margin-left: 240px;
+  width: calc(100% - 240px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* 聊天区域顶部样式 */
+.chat-header {
+  padding: 16px;
+  background: var(--bg-color);
+  border-bottom: 1px solid var(--tertiary-bg);
+  display: flex;
+  align-items: center;
+}
+
+.room-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+.room-info svg {
+  color: var(--text-secondary);
+}
+
+#roomDisplay {
+  font-size: 1rem;
+}
+
+/* 消息列表区域 */
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--bg-color);
+  min-height: 0;
+}
+
+/* 消息样式优化 */
+.message {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 16px;
+  margin: 2px -16px;
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  margin-bottom: 24px;
+}
+
+/* 消息内容容器 */
+.message-content {
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+/* 发送者名称 */
+.sender-name {
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* 自己发送的消息 */
+.message.self {
+  flex-direction: row-reverse;
+}
+
+.message.self .message-content {
+  background: var(--primary-color);
+  color: white;
+  border-radius: 16px 16px 4px 16px;
+  margin-left: auto;
+}
+
+.message.self .sender-name {
+  text-align: right;
+  color: var(--primary-color);
+}
+
+/* 他人发送的消息 */
+.message:not(.self):not(.system) .message-content {
+  background: var(--input-bg);
+  color: var(--text-color);
+  border-radius: 16px 16px 16px 4px;
+}
+
+/* 系统消息样式 */
+.message.system {
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+  padding: 4px 16px;
+  margin-bottom: 8px;
+}
+
+.message.system .message-content {
+  background: transparent;
+  padding: 4px 8px;
+  max-width: none;
+}
+
+/* 时间戳样式优化 */
+.message-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  position: absolute;
+  bottom: -20px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* 根据消息位置调整时间戳位置 */
+.message.self .message-time {
+  right: 0;
+}
+
+.message:not(.self) .message-time {
+  left: 0;
+}
+
+/* 消息hover效果 */
+.message:not(.system):hover {
+  background: transparent;
+}
+
+.message:hover .message-time {
+  opacity: 1;
+}
+
+/* 确保时间戳不会被截断 */
+.message {
+  margin-bottom: 24px;
+}
+
+/* 输入区域容器 */
+.input-container {
+  flex-shrink: 0;
+  padding: 16px;
+  background: var(--bg-color);
+  border-top: 1px solid var(--tertiary-bg);
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+/* 输入区域样式 */
+.input-area {
+  margin: 0;
+  padding: 0 8px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-height: 44px;
+}
+
+/* 输入框样式优化 */
+#messageInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  padding: 12px 8px;
+  color: var(--text-color);
+  font-size: 0.9375rem;
+  line-height: 1.375rem;
+  resize: none;
+  min-height: 24px;
+  max-height: 144px;
+  overflow-y: auto;
+  display: block;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  width: 100%;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+#messageInput::placeholder {
+  color: var(--text-muted);
+}
+
+#messageInput:focus {
+  outline: none;
+}
+
+/* 添加滚动条样式 */
+#messageInput::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#messageInput::-webkit-scrollbar-thumb {
+  background-color: var(--tertiary-bg);
+  border-radius: 4px;
+}
+
+#messageInput::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#messageInput::-webkit-scrollbar-thumb:hover {
+  background-color: var(--secondary-bg);
+}
+
+/* 按钮样式 */
+.input-area button {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.input-area button:hover:not(:disabled) {
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.input-area button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* 侧边栏样式优化 */
+.sidebar-wrapper {
+  height: 100%;
+  display: flex;
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 100;
+  transition: transform 0.3s ease;
+}
+
+.sidebar {
+  width: 240px;
+  background: var(--secondary-bg);
+  border-right: 1px solid var(--tertiary-bg);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sidebar h3 {
+  padding: 16px;
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* 用户列表样式 */
+#userList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  margin: 0;
+}
+
+#userList li {
+  display: flex;
+  align-items: center;
+  padding: 6px 8px;
+  margin: 2px 0;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+#userList li:hover {
+  background: rgba(79, 84, 92, 0.3);
+  color: var(--text-color);
+}
+
+/* 用户状态指示器 */
+#userList li::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 8px;
+  background-color: var(--text-muted);
+}
+
+#userList li.connected::before {
+  background-color: var(--success-color);
+}
+
+#userList li.connecting::before {
+  background-color: var(--warning-color);
+  animation: pulse 2s infinite;
+}
+
+#userList li.failed::before {
+  background-color: var(--danger-color);
+}
+
+#userList li.disconnected::before {
+  background-color: var(--text-muted);
+}
+
+/* 自己的用户样式 */
+#userList li.self-user {
+  background: rgba(79, 84, 92, 0.3);
+  color: var(--text-color);
+  font-weight: 500;
+}
+
+/* 连接状态文本 */
+.connection-status {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* 状态动画 */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.3; }
+  100% { opacity: 1; }
+}
+
+/* 文件区域样式 */
+.file-area {
+  display: none;
+}
+
+/* 模态框样式优化 */
+.modal {
+  background: var(--bg-color);  /* 改为深色背景 */
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  width: 300px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.modal h3 {
+  margin: 0 0 15px 0;
+  color: var(--text-color);
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.modal input[type="text"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: var(--input-bg);  /* 改为深色背景 */
+  color: var(--text-color);
+  border-radius: 4px;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.modal input[type="text"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-color);
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.modal-buttons button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+#confirmJoinBtn {
+  background: var(--primary-color);
+  color: white;
+}
+
+#confirmJoinBtn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+#cancelJoinBtn {
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+#cancelJoinBtn:hover {
+  background: #e0e0e0;
+  transform: translateY(-1px);
+}
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+/* 响应式优化 */
+@media (max-width: 868px) {
+  .sidebar-wrapper {
+    position: fixed;
+  }
+
+  .chat-area {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .message {
+    max-width: 90%;
+  }
+}
+
+/* 切换按钮调整 */
+.toggle-container {
+  position: relative;
+  width: 16px;  /* 减小宽度 */
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-toggle {
+  width: 16px;  /* 减小宽度 */
+  height: 40px;  /* 减小高度 */
+  background: var(--tertiary-bg);  /* 使用 Discord 的深色背景 */
+  color: var(--text-secondary);  /* 使用次要文本颜色 */
+  border: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  transition: all 0.2s ease;
+  font-size: 12px;  /* 减小字体大小 */
+  padding: 0;  /* 移除内边距 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-toggle:hover {
+  background: var(--secondary-bg);  /* 悬停时的背景色 */
+  color: var(--text-color);  /* 悬停时的文本颜色 */
+}
+
+/* 修改收起状态样式 */
+.sidebar.collapsed {
+  margin-left: -250px; /* 使用 margin-left 代替 transform */
+}
+
+/* 当侧边栏收起时的聊天区域样式 */
+.sidebar.collapsed ~ .chat-area {
+  margin-left: 16px;  /* 调整边距以匹配新的按钮宽度 */
+  width: calc(100% - 16px);  /* 调整宽度以匹配新的按钮宽度 */
+}
+
+/* 移动端适配优化 */
+@media (max-width: 868px) {
+  .sidebar-wrapper {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100%;
+    z-index: 1000;
+  }
+
+  .chat-area {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .sidebar.collapsed ~ .chat-area {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* 进度条容器 */
+.progress-container {
+  position: relative;
+  width: 100%;
+  height: 20px;
+  background: var(--input-bg);  /* 改为深色背景 */
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 5px;
+}
+
+/* 进度条 */
+.progress-bar {
+  height: 100%;
+  background: #28a745;
+  width: 0;
+  transition: width 0.3s ease;
+}
+
+/* 进度文本 */
+.progress-text {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  color: var(--text-color);  /* 改为亮色文本 */
+  font-size: 12px;
+  text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* 速度显示 */
+.speed-text {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-secondary);  /* 改为次要文本颜色 */
+  font-size: 12px;
+}
+
+/* 文件消息样式调整 */
+.message.file {
+  padding-bottom: 15px;
+}
+
+.reconnect-container {
+  text-align: center;
+  margin: 10px 0;
+}
+
+.reconnect-container button {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.reconnect-container button:hover {
+  background-color: #c82333;
+}
+
+/* 添加拖拽区域样式 */
+.drag-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  justify-content: center;
+  align-items: center;
+}
+
+.drag-overlay.active {
+  display: flex;
+}
+
+.drag-message {
+  color: white;
+  font-size: 24px;
+  padding: 30px;
+  border: 3px dashed white;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* 用户状态样式 */
+#userList li.connected::before {
+  content: '•';
+  color: var(--success-color);
+  margin-right: 8px;
+}
+
+#userList li.disconnected::before {
+  content: '•';
+  color: var(--text-secondary);
+  margin-right: 8px;
+}
+
+#userList li.connecting::before {
+  content: '•';
+  color: var(--warning-color);
+  margin-right: 8px;
+  animation: blink 1s infinite;
+}
+
+#userList li.failed::before {
+  content: '•';
+  color: var(--danger-color);
+  margin-right: 8px;
+}
+
+.connection-status {
+  font-size: 0.85em;
+  margin-left: 8px;
+}
+
+#userList li.connecting .connection-status {
+  color: var(--warning-color);
+  animation: blink 1s infinite;
+}
+
+#userList li.failed .connection-status {
+  color: var(--danger-color);
+}
+
+#userList li.disconnected .connection-status {
+  color: var(--text-secondary);
+}
+
+/* 模态框按钮样式统一 */
+.modal-buttons button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s ease;
+}
+
+#confirmJoinBtn {
+  background: #0078d4;
+  color: white;
+}
+
+#confirmJoinBtn:hover {
+  background: #006cbd;
+}
+
+#cancelJoinBtn {
+  background: #f0f0f0;
+  color: #333;
+}
+
+#cancelJoinBtn:hover {
+  background: #e0e0e0;
+}
+
+/* 添加滚动条样式 */
+#messages::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+#messages::-webkit-scrollbar-corner {
+  background-color: transparent;
+}
+
+#messages::-webkit-scrollbar-thumb {
+  background-color: var(--tertiary-bg);
+  min-height: 40px;
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+
+#messages::-webkit-scrollbar-track {
+  background-color: var(--bg-color);
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  border-radius: 8px;
+}
+
+#messages::-webkit-scrollbar-thumb:hover {
+  background-color: var(--secondary-bg);
+}
+
+/* 侧边栏底部样式 */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 8px;
+  border-top: 1px solid rgba(79, 84, 92, 0.3);
+}
+
+/* 加入房间按钮样式 */
+.join-room-btn {
+  width: 100%;
+  padding: 8px;
+  background: transparent;
+  border: 1px solid var(--primary-color);
+  border-radius: 4px;
+  color: var(--primary-color);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.join-room-btn:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.join-room-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 文件上传按钮样式 */
+.file-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.file-upload-btn:hover {
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 移动端用户列表切换按钮 */
+.mobile-users-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  padding: 8px;
+  margin-right: 8px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.mobile-users-toggle:hover {
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* 移动端遮罩层 */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 99;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* 移动端适配优化 */
+@media (max-width: 868px) {
+  .mobile-users-toggle {
+    display: flex;
+  }
+
+  .sidebar-wrapper {
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-wrapper.active {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+    opacity: 1;
+  }
+
+  .chat-area {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  /* 隐藏原来的侧边栏切换按钮 */
+  .toggle-container {
+    display: none;
+  }
+}
+
+/* 文件消息样式优化 */
+.file-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  margin: 4px 0;
+  border: 1px solid var(--tertiary-bg);
+}
+
+.file-info-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.file-icon {
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  color: var(--text-color);
+  font-weight: 500;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-meta {
+  display: flex;
+  gap: 12px;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* 进度条容器样式优化 */
+.progress-container {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 8px;
+  transition: all 0.3s ease;
+}
+
+.progress-container.completed {
+  background: rgba(59, 165, 92, 0.1);
+}
+
+.progress-wrapper {
+  background: var(--tertiary-bg);
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.progress-container.completed .progress-bar {
+  background: var(--success-color);
+}
+
+.status-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.progress-text {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.progress-text.completed {
+  color: var(--success-color);
+}
+
+.speed-text {
+  color: var(--text-secondary);
+}
+
+/* 添加动画效果 */
+@keyframes progress-pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.progress-bar:not(.completed) {
+  animation: progress-pulse 2s infinite;
+}
+
+/* 文件上传按钮禁用状态 */
+.file-upload-btn[style*="pointer-events: none"] {
+  cursor: not-allowed;
+}
+
+.file-upload-btn[style*="opacity: 0.5"]:hover {
+  background: transparent;
+}
+
+/* 文件接收提示样式 */
+.file-receive-prompt {
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.file-receive-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  margin: 8px 0;
+  border: 1px solid var(--tertiary-bg);
+}
+
+.file-action-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.file-action-buttons button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.accept-file-btn {
+  background: var(--success-color);
+  color: white;
+}
+
+.accept-file-btn:hover {
+  background: var(--success-color-dark, #2d9150);
+}
+
+.reject-file-btn {
+  background: var(--danger-color);
+  color: white;
+}
+
+.reject-file-btn:hover {
+  background: var(--danger-color-dark, #d83c3e);
+}
+
+/* 文件状态标记 */
+.file-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  margin-left: 8px;
+}
+
+.file-status-badge.completed {
+  background: var(--success-color);
+  color: white;
+}
+
+/* 文件操作按钮 */
+.file-action-container {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s ease;
+}
+
+.download-button:hover {
+  background: var(--primary-dark);
+}
+
+.download-button svg {
+  flex-shrink: 0;
+}
+
+/* 禁止重复点击的状态 */
+.download-button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+} 

@@ -1,6 +1,6 @@
 import { peerConnections } from './webrtc.js';
 import { handleFileTransfer, handleFileChunk, handleFileAccept, handleChunkData, ongoingTransfers } from './fileTransfer.js';
-import { displayMessage, updateUIState } from './ui.js';
+import { displayMessage, updateUIState, showFileReceivePrompt, updateProgressBar } from './ui.js';
 import { onlineUsers } from './socket.js';
 import { socket } from './socket.js';
 import { TransferState } from './config.js';
@@ -35,19 +35,58 @@ export function setupDataChannel(channel, targetId) {
       try {
         const message = JSON.parse(data);
         console.log(`解析后的消息类型: ${message.type}`);
+        
         if (message.type === 'text') {
           const senderName = onlineUsers.get(targetId) || '未知用户';
           console.log(`显示消息: ${senderName}: ${message.text}`);
           displayMessage(`${senderName}: ${message.text}`, 'text');
         } else if (message.type === 'file') {
           console.log('收到文件传输请求:', message);
-          handleFileTransfer(message, targetId);
+          
+          // 检查是否已经在处理这个文件
+          if (ongoingTransfers[message.fileId]) {
+            const transfer = ongoingTransfers[message.fileId];
+            if (transfer.state === TransferState.DOWNLOADING || 
+                transfer.state === TransferState.COMPLETED) {
+              console.log('文件已在下载或已完成，忽略请求');
+              return;
+            }
+          }
+          
+          // 显示接收提示并等待用户响应
+          const userResponse = await showFileReceivePrompt({
+            ...message,
+            senderId: targetId
+          });
+
+          if (userResponse) {
+            // 使用已有的 updateProgressBar 函数更新UI状态
+            updateProgressBar(message.fileId, 0, 'download');
+            handleFileTransfer(message, targetId);
+            channel.send(JSON.stringify({
+              type: 'file-accept',
+              fileId: message.fileId,
+              receiverId: socket.id
+            }));
+          } else {
+            channel.send(JSON.stringify({
+              type: 'file-reject',
+              fileId: message.fileId,
+              receiverId: socket.id
+            }));
+          }
         } else if (message.type === 'chunk') {
           console.log(`收到文件块 ${message.chunkIndex}/${message.chunks}`);
           handleFileChunk(message, targetId);
         } else if (message.type === 'file-accept') {
           console.log('收到文件接受确认:', message);
           handleFileAccept(message, targetId);
+        } else if (message.type === 'file-reject') {
+          console.log('收到文件拒绝消息:', message);
+          // 处理文件拒绝逻辑
+          if (ongoingTransfers[message.fileId]) {
+            ongoingTransfers[message.fileId].pendingPeers.delete(targetId);
+          }
         } else {
           console.log('未知的消息类型:', message.type);
         }
@@ -93,7 +132,10 @@ export function sendMessage() {
     peerConnections.forEach(({ dataChannel }, peerId) => {
       if (dataChannel && dataChannel.readyState === 'open') {
         console.log(`发送到 ${peerId}: ${message}`);
-        dataChannel.send(JSON.stringify({ type: 'text', text: message }));
+        dataChannel.send(JSON.stringify({ 
+          type: 'text',   
+          text: message 
+        }));
       }
     });
     displayMessage(`我: ${message}`, 'text');

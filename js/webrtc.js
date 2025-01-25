@@ -1,8 +1,8 @@
 import { rtcConfig } from './config.js';
-import { socket } from './socket.js';
+import { socket, onlineUsers } from './socket.js';
 import { setupDataChannel } from './dataChannel.js';
-import { displayMessage, updateUIState, showReconnectButton } from './ui.js';
-import { onlineUsers } from './socket.js';
+import { displayMessage, updateUIState, showReconnectButton, updateUserList } from './ui.js';
+import { ConnectionState, updateConnectionState } from './connectionState.js';
 
 export const peerConnections = new Map(); // key: socketId, value: { pc: RTCPeerConnection, dataChannel: RTCDataChannel }
 const CONNECTION_TIMEOUT = 20000; // 20秒超时
@@ -15,10 +15,22 @@ export async function createPeerConnection(targetId) {
     // 检查目标用户是否在线
     if (!onlineUsers.has(targetId)) {
         console.log(`不创建与未知用户 ${targetId} 的连接`);
+        updateConnectionState(targetId, ConnectionState.DISCONNECTED, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
         return null;
     }
 
     try {
+        // 设置初始连接状态
+        updateConnectionState(targetId, ConnectionState.CONNECTING, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
+        
         const pc = new RTCPeerConnection(rtcConfig);
         
         const connection = { pc, dataChannel: null, currentTransfer: null };
@@ -78,15 +90,48 @@ export async function createPeerConnection(targetId) {
         };
       
         pc.onconnectionstatechange = () => {
-            console.log(`连接状态 (${targetId}):`, pc.connectionState);
+            console.log(`Connection state changed to: ${pc.connectionState} for peer ${targetId}`);
+            
+            let connectionState;
+            if (dataChannel.readyState === 'open') {
+                connectionState = ConnectionState.CONNECTED;
+            } else if (pc.connectionState === 'connecting' || pc.connectionState === 'new') {
+                connectionState = ConnectionState.CONNECTING;
+            } else if (pc.connectionState === 'failed' || 
+                      pc.connectionState === 'disconnected' || 
+                      pc.connectionState === 'closed') {
+                const connectionInfo = connectionAttempts.get(targetId);
+                if (connectionInfo && connectionInfo.attempts >= 3) {
+                    connectionState = ConnectionState.FAILED;
+                } else {
+                    connectionState = ConnectionState.DISCONNECTED;
+                }
+            }
+
+            // 更新本地状态
+            if (connectionState) {
+                updateConnectionState(targetId, connectionState, {
+                    onlineUsers,
+                    updateUserList,
+                    displayMessage
+                });
+            }
+
+            // 广播状态变化
+            socket.emit('connection-state-change', {
+                targetId,
+                state: pc.connectionState,
+                dataChannelState: dataChannel.readyState
+            });
+
+            // 处理连接状态
             if (pc.connectionState === 'connected') {
                 clearConnectionTimeout(targetId);
                 const peerName = onlineUsers.get(targetId) || '未知用户';
-                displayMessage(`系统: 已与 ${peerName} 建立连接`, 'system');
                 updateUIState();
             } else if (pc.connectionState === 'failed' || 
-                       pc.connectionState === 'disconnected' || 
-                       pc.connectionState === 'closed') {
+                      pc.connectionState === 'disconnected' || 
+                      pc.connectionState === 'closed') {
                 handleConnectionFailure(targetId);
             }
         };
@@ -108,6 +153,40 @@ export async function createPeerConnection(targetId) {
                 handleConnectionFailure(targetId);
             }
         };
+
+        // 修改数据通道状态变化监听
+        dataChannel.onopen = () => {
+            console.log(`Data channel to ${targetId} opened`);
+            updateConnectionState(targetId, ConnectionState.CONNECTED, {
+                onlineUsers,
+                updateUserList,
+                displayMessage
+            });
+            socket.emit('connection-state-change', {
+                targetId,
+                state: pc.connectionState,
+                dataChannelState: 'open'
+            });
+        };
+
+        dataChannel.onclose = () => {
+            console.log(`Data channel to ${targetId} closed`);
+            const connectionInfo = connectionAttempts.get(targetId);
+            const state = connectionInfo && connectionInfo.attempts >= 3 ? 
+                         ConnectionState.FAILED : ConnectionState.DISCONNECTED;
+            
+            updateConnectionState(targetId, state, {
+                onlineUsers,
+                updateUserList,
+                displayMessage
+            });
+            socket.emit('connection-state-change', {
+                targetId,
+                state: pc.connectionState,
+                dataChannelState: 'closed'
+            });
+        };
+
         return pc;
     } catch (err) {
         console.error('创建对等连接失败:', err);
@@ -135,51 +214,50 @@ function handleConnectionTimeout(targetId) {
 function handleConnectionFailure(targetId) {
     clearConnectionTimeout(targetId);
     
-    // 检查用户是否还在线
     if (!onlineUsers.has(targetId)) {
         console.log(`用户 ${targetId} 已离线，不进行重连`);
         peerConnections.delete(targetId);
+        updateConnectionState(targetId, ConnectionState.DISCONNECTED, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
         updateUIState();
         return;
     }
     
-    // 检查是否还需要继续重连
     const attempts = reconnectAttempts.get(targetId) || 0;
     if (attempts < RECONNECT_ATTEMPTS) {
         reconnectAttempts.set(targetId, attempts + 1);
+        updateConnectionState(targetId, ConnectionState.CONNECTING, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
         
-        // 显示重连提示
-        const peerName = onlineUsers.get(targetId);
-        displayMessage(`系统: 与 ${peerName} 的连接已断开，正在进行第 ${attempts + 1}/${RECONNECT_ATTEMPTS} 次重连...`, 'system');
-        
-        // 延迟一段时间后尝试重连
         setTimeout(async () => {
             try {
                 await autoReconnect(targetId);
-                // 如果这次重连失败，尝试重新连接所有未连接的用户
-                if (attempts + 1 === RECONNECT_ATTEMPTS) {
-                    await reconnectAllPeers();
-                }
             } catch (err) {
                 console.error('自动重连失败:', err);
                 if (attempts + 1 === RECONNECT_ATTEMPTS) {
-                    await reconnectAllPeers();
+                    updateConnectionState(targetId, ConnectionState.FAILED, {
+                        onlineUsers,
+                        updateUserList,
+                        displayMessage
+                    });
                 }
             }
         }, RECONNECT_DELAY);
     } else {
-        // 重连次数用完，显示手动重连按钮
         peerConnections.delete(targetId);
-        console.log(`已移除与 ${targetId} 的对等连接`);
-        
-        if (onlineUsers.has(targetId)) {
-            displayMessage(`系统: 与 ${onlineUsers.get(targetId)} 的连接已断开，自动重连失败`, 'system');
-            showReconnectButton(targetId);
-        }
-        
+        updateConnectionState(targetId, ConnectionState.FAILED, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
         updateUIState();
         reconnectAttempts.delete(targetId);
-        reconnectAllPeers();
     }
 }
 

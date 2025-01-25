@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const cancelJoinBtn = document.getElementById('cancelJoinBtn');
   const confirmJoinBtn = document.getElementById('confirmJoinBtn');
   const roomInput = document.getElementById('roomId');
+  const fileInput = document.getElementById('fileInput');
+  const messageInput = document.getElementById('messageInput');
 
   // 显示模态框
   joinRoomBtn.addEventListener('click', () => {
@@ -46,9 +48,78 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 原有的事件监听
+  // 发送消息按钮
   document.getElementById('sendBtn').addEventListener('click', sendMessage);
-  document.getElementById('sendFileBtn').addEventListener('click', sendFile);
   
+  // 文件上传处理
+  let isProcessingFile = false;
+  
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0 && !isProcessingFile) {
+      isProcessingFile = true;
+      sendFile();
+      // 重置文件输入框，允许选择相同文件
+      fileInput.value = '';
+      isProcessingFile = false;
+    }
+  });
+  
+  // 文件上传图标点击事件（不需要额外的处理器，因为label已经关联了input）
   updateUIState();
+
+  // 处理输入框的键盘事件
+  messageInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      if (!e.shiftKey) {
+        e.preventDefault(); // 阻止默认的换行行为
+        const sendBtn = document.getElementById('sendBtn');
+        if (!sendBtn.disabled) {
+          sendBtn.click();
+        }
+      }
+    }
+  });
+
+  // 自动调整输入框高度
+  function adjustInputHeight(input) {
+    // 保存当前滚动位置
+    const scrollPos = input.scrollTop;
+    
+    // 重置高度
+    input.style.height = 'auto';
+    
+    // 计算新高度
+    const newHeight = Math.min(input.scrollHeight, 144);
+    input.style.height = newHeight + 'px';
+    
+    // 恢复滚动位置
+    input.scrollTop = scrollPos;
+    
+    // 更新输入区域的对齐方式
+    const inputArea = input.closest('.input-area');
+    if (inputArea) {
+      inputArea.style.alignItems = newHeight > 44 ? 'flex-start' : 'flex-end';
+    }
+  }
+
+  // 在 DOMContentLoaded 事件监听器中
+  messageInput.addEventListener('input', () => {
+    adjustInputHeight(messageInput);
+  });
+
+  // 初始化时设置一次
+  adjustInputHeight(messageInput);
+
+  // 处理粘贴事件
+  messageInput.addEventListener('paste', (e) => {
+    // 延迟执行以确保内容已经粘贴
+    setTimeout(() => {
+      adjustInputHeight(messageInput);
+    }, 0);
+  });
+
+  // 处理窗口大小改变
+  window.addEventListener('resize', () => {
+    adjustInputHeight(messageInput);
+  });
 }); 

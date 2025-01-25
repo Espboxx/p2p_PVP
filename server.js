@@ -128,6 +128,19 @@ io.on('connection', (socket) => {
       users.delete(socket.id);
     }
   });
+
+  socket.on('connection-state-change', ({ targetId, state, dataChannelState }) => {
+    const user = users.get(socket.id);
+    if (user && user.roomId) {
+      // 向房间内所有用户广播连接状态变化
+      io.in(user.roomId).emit('peer-connection-state', {
+        fromId: socket.id,
+        targetId,
+        state,
+        dataChannelState
+      });
+    }
+  });
 });
 
 server.listen(3000, () => {

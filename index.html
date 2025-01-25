@@ -4,544 +4,27 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>P2P聊天室</title>
-  <style>
-    /* 基础样式调整 */
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      overflow: hidden;
-      font-size: 16px;
-    }
-
-    /* 容器响应式调整 */
-    .container {
-      max-width: none;
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      border-radius: 0;
-    }
-
-    header {
-      padding: 10px;
-      background: #f8f9fa;
-      border-bottom: 1px solid #eee;
-    }
-
-    header h1 {
-      margin: 0;
-      font-size: 1.5rem;
-    }
-
-    /* 聊天容器响应式调整 */
-    .chat-container {
-      flex: 1;
-      position: relative;
-      display: flex;
-      overflow: hidden;
-    }
-
-    /* 修改侧边栏包装器样式 */
-    .sidebar-wrapper {
-      position: fixed;
-      left: 0;
-      top: 0;
-      bottom: 0;
-      z-index: 1000;
-      height: 100vh;
-      display: flex;
-    }
-
-    /* 修改侧边栏样式 */
-    .sidebar {
-      width: 250px;
-      min-width: 250px;
-      background: #f8f9fa;
-      border-right: 1px solid #eee;
-      padding: 15px;
-      height: 100%;
-      transition: transform 0.3s ease;
-      overflow-y: auto;
-      z-index: 1000;
-    }
-
-    .sidebar.collapsed {
-      transform: translateX(-100%);
-    }
-
-    /* 修改聊天区域样式 */
-    .chat-area {
-      flex: 1;
-      margin-left: 250px;
-      width: calc(100% - 250px);
-      display: flex;
-      flex-direction: column;
-      transition: margin-left 0.3s ease, width 0.3s ease;
-      z-index: 1;
-    }
-
-    /* 当侧边栏收起时的聊天区域样式 */
-    .sidebar.collapsed ~ .chat-area {
-      margin-left: 0;
-      width: 100%;
-    }
-
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 10px;
-    }
-
-    .message {
-      max-width: 85%;
-      word-wrap: break-word;
-    }
-
-    /* 输入区域响应式调整 */
-    .input-area {
-      padding: 10px;
-      gap: 8px;
-      background: #fff;
-      border-top: 1px solid #eee;
-    }
-
-    #messageInput {
-      padding: 8px;
-      font-size: 1rem;
-    }
-
-    button {
-      padding: 8px 15px;
-      font-size: 1rem;
-    }
-
-     /* 文件区域响应式调整 */
-     .file-area {
-      flex-wrap: wrap;
-      padding: 8px;
-    }
-
-    #fileInput {
-      flex: 1;
-      min-width: 200px;
-    }
-
-    /* 移动端特定样式 */
-    @media (max-width: 868px) {
-      .sidebar-wrapper {
-        transform: translateX(0);
-        transition: transform 0.3s ease;
-        position: absolute!important;
-        z-index: 1000!important;
-        height: 100%;
-      }
-
-      .sidebar {
-        width: 80%;
-        max-width: 300px;
-      }
-
-      .chat-area {
-        margin-left: 0;
-        width: 100%;
-      }
-
-      .sidebar.collapsed ~ .chat-area {
-        margin-left: 0;
-        width: 100%;
-      }
-
-      .sidebar-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: 999;
-      }
-
-      .sidebar-overlay.active {
-        display: block;
-      }
-    }
-
-    /* 进度条响应式调整 */
-    .progress-container {
-      margin: 8px 0;
-    }
-
-    .progress-text, .speed-text {
-      font-size: 0.9rem;
-    }
-
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 0;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    .container {
-      max-width: none;
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      flex-direction: column;
-      border-radius: 0;
-    }
-
-    header {
-      background: #0078d4;
-      color: white;
-      padding: 10px 20px;
-    }
-
-    header h1 {
-      margin: 0;
-    }
-
-    #connectionStatus {
-      padding: 5px;
-    }
-
-    .chat-container {
-      flex: 1;
-      height: auto;
-      position: relative;
-      display: flex;
-      overflow: hidden;
-    }
-
-    .sidebar-wrapper {
-      position: relative;
-      display: flex;
-      z-index: 1;
-    }
-
-    .sidebar {
-      position: relative;
-      width: 250px;
-      min-width: 250px;
-      background: #f8f9fa;
-      border-right: 1px solid #eee;
-      padding: 20px;
-      transition: all 0.3s ease;
-      flex-shrink: 0;
-    }
-
-    .sidebar.collapsed {
-      transform: translateX(-100%);
-    }
-
-    .sidebar h3 {
-      margin: 0 0 15px 0;
-      color: #333;
-    }
-
-    #userList {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    #userList li {
-      padding: 8px 12px;
-      margin: 5px 0;
-      background: white;
-      border-radius: 4px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      display: flex;
-      align-items: center;
-    }
-
-    #userList li::before {
-      content: '•';
-      color: #28a745;
-      margin-right: 8px;
-    }
-
-    .chat-area {
-      position: relative;
-      flex: 1;
-      padding: 20px;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      transition: margin-left 0.3s ease;
-    }
-
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      margin-bottom: 10px;
-      width: 100%;
-    }
-
-    .input-area {
-      margin-bottom: 5px;
-      flex-shrink: 0;
-      width: 100%;
-    }
-
-    .message {
-      margin-bottom: 10px;
-      padding: 8px 12px;
-      border-radius: 4px;
-      background: white;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-
-    .message.system {
-      color: #666;
-      font-style: italic;
-    }
-
-    .input-area {
-      display: flex;
-      gap: 10px;
-    }
-
-    #messageInput {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-
-    button {
-      padding: 10px 20px;
-      background: #0078d4;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    button:hover {
-      background: #005a9e;
-    }
-
-    .hidden {
-      display: none;
-    }
-
-    /* 添加样式以支持文件消息 */
-    .message.file {
-      background: #e2e3e5;
-      border-left: 4px solid #6c757d;
-    }
-
-    .message.file button {
-      margin-top: 5px;
-      padding: 5px 10px;
-      background: #28a745;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .message.file button:hover {
-      background: #218838;
-    }
-
-    /* 添加禁用状态的样式 */
-    button:disabled {
-      background: #cccccc !important;
-      cursor: not-allowed;
-    }
-
-    input:disabled {
-      background: #f5f5f5;
-      cursor: not-allowed;
-    }
-
-    #messageInput:disabled::placeholder {
-      color: #999;
-    }
-
-    /* 进度条容器 */
-    .progress-container {
-      margin-top: 10px;
-      width: 100%;
-      background-color: #f0f0f0;
-      border-radius: 4px;
-      position: relative;
-      height: 20px;
-      overflow: hidden;
-    }
-
-    /* 进度条 */
-    .progress-bar {
-      height: 100%;
-      background-color: #4CAF50;
-      width: 0;
-      transition: width 0.3s ease-in-out;
-    }
-
-    /* 进度文本 */
-    .progress-text {
-      position: absolute;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      color: #000;
-      font-size: 12px;
-      text-shadow: 1px 1px 1px rgba(255,255,255,0.5);
-    }
-
-    /* 速度显示 */
-    .speed-text {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #666;
-      font-size: 12px;
-    }
-
-    /* 文件消息样式调整 */
-    .message.file {
-      padding-bottom: 15px;
-    }
-
-    .reconnect-container {
-      text-align: center;
-      margin: 10px 0;
-    }
-
-    .reconnect-container button {
-      background-color: #dc3545;
-      color: white;
-      border: none;
-      padding: 5px 15px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    .reconnect-container button:hover {
-      background-color: #c82333;
-    }
-
-    .modal-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      z-index: 1000;
-    }
-
-    .modal {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-      z-index: 1001;
-    }
-
-    .modal h3 {
-      margin-top: 0;
-      margin-bottom: 15px;
-    }
-
-    .modal-buttons {
-      display: flex;
-      justify-content: flex-end;
-      gap: 10px;
-      margin-top: 15px;
-    }
-
-    .room-actions {
-      padding: 5px 20px;
-    }
-
-    /* 切换按钮容器样式 */
-    .toggle-container {
-      position: relative;
-      width: 30px;
-      height: 60px;
-      z-index: 1001;
-    }
-
-    /* 切换按钮样式 */
-    .sidebar-toggle {
-      width: 100%;
-      height: 100%;
-      background: #0078d4;
-      border: none;
-      color: white;
-      cursor: pointer;
-      border-radius: 0 4px 4px 0;
-      transition: all 0.3s ease;
-    }
-    .sidebar-toggle.collapsed {
-      transform: translateX(-250px);
-    }
-
-    /* 添加拖拽区域样式 */
-    .drag-overlay {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      z-index: 2000;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .drag-overlay.active {
-      display: flex;
-    }
-
-    .drag-message {
-      color: white;
-      font-size: 24px;
-      padding: 30px;
-      border: 3px dashed white;
-      border-radius: 10px;
-      background: rgba(0, 0, 0, 0.5);
-    }
-  </style>
+  <link rel="stylesheet" href="css/style.css">
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="js/main.js"></script>
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>P2P聊天室</h1>
-    </header>
-    
     <div id="connectionStatus"></div>
     
-    <div class="room-actions">
-      <button id="joinRoomBtn">加入其他房间</button>
-    </div>
-
     <div class="chat-container">
       <div class="sidebar-wrapper">
         <div class="sidebar">
           <h3>在线用户</h3>
-          <ul id="userList"></ul>
+          <div id="userList"></div>
+          <div class="sidebar-footer">
+            <button id="joinRoomBtn" class="join-room-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M20 11.1111H12.8889V4H11.1111V11.1111H4V12.8889H11.1111V20H12.8889V12.8889H20V11.1111Z"/>
+              </svg>
+              加入房间
+            </button>
+          </div>
         </div>
         <div class="toggle-container">
           <button class="sidebar-toggle" id="sidebarToggle">⟨</button>
@@ -549,14 +32,31 @@
       </div>
 
       <div class="chat-area hidden" id="chatSection">
-        <div id="messages"></div>
-        <div class="input-area">
-          <input type="text" id="messageInput" placeholder="输入消息">
-          <button id="sendBtn">发送</button>
+        <div class="chat-header">
+          <button class="mobile-users-toggle" id="mobileUsersToggle">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            </svg>
+          </button>
+          <div class="room-info">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M14 8C14 5.79086 12.2091 4 10 4C7.79086 4 6 5.79086 6 8C6 10.2091 7.79086 12 10 12C12.2091 12 14 10.2091 14 8ZM4 8C4 4.68629 6.68629 2 10 2C13.3137 2 16 4.68629 16 8C16 11.3137 13.3137 14 10 14C6.68629 14 4 11.3137 4 8Z M20 19C20 19.5523 19.5523 20 19 20H1C0.447715 20 0 19.5523 0 19V18C0 14.6863 2.68629 12 6 12H14C17.3137 12 20 14.6863 20 18V19Z"/>
+            </svg>
+            <span id="roomDisplay"></span>
+          </div>
         </div>
-        <div class="input-area file-area">
-          <input type="file" id="fileInput">
-          <button id="sendFileBtn">发送文件</button>
+        <div id="messages"></div>
+        <div class="input-container">
+          <div class="input-area">
+            <label for="fileInput" class="file-upload-btn" title="发送文件">
+              <svg width="24" height="24" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+              </svg>
+            </label>
+            <input type="file" id="fileInput" hidden>
+            <input type="text" id="messageInput" placeholder="输入消息">
+            <button id="sendBtn">发送</button>
+          </div>
         </div>
       </div>
     </div>

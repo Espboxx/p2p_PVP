@@ -1,5 +1,14 @@
 import { createPeerConnection, peerConnections, handleSignal } from './webrtc.js';
-import { displayMessage, updateUserList, updateUIState } from './ui.js';
+import { 
+  displayMessage, 
+  updateUserList, 
+  updateUIState
+} from './ui.js';
+import { 
+  ConnectionState,
+  updateConnectionState,
+  connectionAttempts 
+} from './connectionState.js';
 
 // 在文件开头添加默认房间常量
 const DEFAULT_ROOM = 'public';
@@ -14,28 +23,38 @@ export const onlineUsers = new Map(); // key: socketId, value: userId
 // Socket事件处理
 socket.on('room-joined', ({ roomId, members }) => {
   console.log(`成功加入房间 ${roomId}，成员列表:`, members);
-  const statusDiv = document.getElementById('connectionStatus');
-  statusDiv.textContent = `✓ 已加入房间 ${roomId} (用户ID: ${userId})`;
-  statusDiv.style.color = 'green';
+  const roomDisplay = document.getElementById('roomDisplay');
+  roomDisplay.textContent = `房间: ${roomId}`;
   
   document.getElementById('chatSection').classList.remove('hidden');
   
   if (members.length <= 1) {
-    // 如果只有自己一个人
     displayMessage(`系统: 已成功加入房间 ${roomId}`, 'system');
     displayMessage('系统: 当前房间暂无其他用户，等待用户加入...', 'system');
   } else {
     displayMessage(`系统: 已成功加入房间 ${roomId}`, 'system');
     displayMessage(`系统: 当前房间有 ${members.length - 1} 个其他用户`, 'system');
-    displayMessage('系统: 正在建立点对点连接...', 'system');
+    
+    // 显示正在连接的用户列表
+    const otherMembers = members.filter(m => m.id !== socket.id);
+    
+    // 为每个现有成员初始化连接状态
+    otherMembers.forEach(member => {
+      updateConnectionState(member.id, ConnectionState.CONNECTING, {
+        onlineUsers,
+        updateUserList,
+        displayMessage
+      });
+      createPeerConnection(member.id).catch(err => {
+        console.error(`创建与 ${member.userId} 的连接失败:`, err);
+        updateConnectionState(member.id, ConnectionState.DISCONNECTED, {
+          onlineUsers,
+          updateUserList,
+          displayMessage
+        });
+      });
+    });
   }
-  
-  // 自动连接现有成员
-  members.forEach(({ id }) => {
-    if (id !== socket.id && !peerConnections.has(id)) {
-      createPeerConnection(id);
-    }
-  });
 });
 
 socket.on('room-users-updated', (members) => {
@@ -51,13 +70,26 @@ socket.on('room-users-updated', (members) => {
   updateUserList(members);
 });
 
-socket.on('user-connected', async ({ id, userId }) => {
+socket.on('user-connected', ({ id, userId }) => {
   console.log(`新用户 ${userId} (${id}) 加入`);
-  if (!peerConnections.has(id)) {
-    const pc = await createPeerConnection(id);
-    console.log(`已创建与 ${id} 的对等连接`);
-  }
   displayMessage(`系统: 用户 ${userId} 已加入房间`, 'system');
+  
+  // 初始化连接状态为 CONNECTING
+  updateConnectionState(id, ConnectionState.CONNECTING, {
+    onlineUsers,
+    updateUserList,
+    displayMessage
+  });
+  
+  // 创建新的连接
+  createPeerConnection(id).catch(err => {
+    console.error(`创建与 ${userId} 的连接失败:`, err);
+    updateConnectionState(id, ConnectionState.DISCONNECTED, {
+      onlineUsers,
+      updateUserList,
+      displayMessage
+    });
+  });
 });
 
 socket.on('user-disconnected', (id) => {
@@ -105,4 +137,51 @@ export function joinRoom(roomId) {
   
   document.getElementById('chatSection').classList.remove('hidden');
   updateUIState();
-} 
+}
+
+// 在连接失败的处理中
+socket.on('connection-failed', (peerId) => {
+  const connectionInfo = connectionAttempts.get(peerId);
+  if (connectionInfo && connectionInfo.attempts >= 3) {
+    updateConnectionState(peerId, ConnectionState.FAILED, {
+      onlineUsers,
+      updateUserList,
+      displayMessage
+    });
+  } else {
+    updateConnectionState(peerId, ConnectionState.CONNECTING, {
+      onlineUsers,
+      updateUserList,
+      displayMessage
+    });
+    // 自动重试
+    setTimeout(() => reconnect(peerId), 1000);
+  }
+});
+
+// 监听连接状态变化
+socket.on('peer-connection-state', ({ fromId, targetId, state, dataChannelState }) => {
+  console.log(`收到连接状态更新:`, { fromId, targetId, state, dataChannelState });
+  
+  let connectionState;
+  if (dataChannelState === 'open') {
+    connectionState = ConnectionState.CONNECTED;
+  } else if (state === 'connecting' || state === 'new') {
+    connectionState = ConnectionState.CONNECTING;
+  } else if (state === 'failed' || state === 'disconnected' || state === 'closed') {
+    const connectionInfo = connectionAttempts.get(targetId);
+    if (connectionInfo && connectionInfo.attempts >= 3) {
+      connectionState = ConnectionState.FAILED;
+    } else {
+      connectionState = ConnectionState.DISCONNECTED;
+    }
+  }
+
+  if (connectionState) {
+    updateConnectionState(targetId, connectionState, {
+      onlineUsers,
+      updateUserList,
+      displayMessage
+    });
+  }
+}); 

@@ -1,6 +1,6 @@
+import { ConnectionState, connectionAttempts } from './connectionState.js';
 import { peerConnections } from './webrtc.js';
-import { socket } from './socket.js';
-import { onlineUsers } from './socket.js';
+import { socket, onlineUsers } from './socket.js';
 import { formatSize, formatSpeed } from './utils.js';
 import { reconnect } from './webrtc.js';
 import { sendFile } from './fileTransfer.js';
@@ -12,6 +12,7 @@ let sidebarCollapsed = false;
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
   const toggleButton = document.getElementById('sidebarToggle');
+  const sidebarWrapper = document.querySelector('.sidebar-wrapper');
   
   sidebarCollapsed = !sidebarCollapsed;
   
@@ -19,19 +20,45 @@ function toggleSidebar() {
   toggleButton.classList.toggle('collapsed');
   toggleButton.textContent = sidebarCollapsed ? '⟩' : '⟨';
   
+  // 添加移动端遮罩层
+  if (window.innerWidth <= 868) {
+    const overlay = document.getElementById('sidebarOverlay');
+    if (overlay) {
+      overlay.classList.toggle('active', !sidebarCollapsed);
+    }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
   const toggleButton = document.getElementById('sidebarToggle');
-  const overlay = document.getElementById('sidebarOverlay');
+  const sidebarWrapper = document.querySelector('.sidebar-wrapper');
+  const messageInput = document.getElementById('messageInput');
+  const mobileUsersToggle = document.getElementById('mobileUsersToggle');
+  
+  // 创建并添加遮罩层
+  const sidebarOverlay = document.createElement('div');
+  sidebarOverlay.className = 'sidebar-overlay';
+  document.body.appendChild(sidebarOverlay);
+  
+  // 切换用户列表
+  mobileUsersToggle?.addEventListener('click', () => {
+    sidebarWrapper.classList.add('active');
+    sidebarOverlay.classList.add('active');
+  });
+  
+  // 点击遮罩层关闭用户列表
+  sidebarOverlay.addEventListener('click', () => {
+    sidebarWrapper.classList.remove('active');
+    sidebarOverlay.classList.remove('active');
+  });
   
   if (toggleButton) {
     toggleButton.addEventListener('click', toggleSidebar);
   }
   
   // 点击遮罩层收起侧边栏
-  if (overlay) {
-    overlay.addEventListener('click', () => {
+  if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', () => {
       if (!sidebarCollapsed) {
         toggleSidebar();
       }
@@ -40,9 +67,37 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // 监听窗口大小变化
   window.addEventListener('resize', () => {
-    const overlay = document.getElementById('sidebarOverlay');
     if (window.innerWidth > 868) {
-      overlay.classList.remove('active');
+      sidebarOverlay.classList.remove('active');
+      sidebarWrapper.classList.remove('active');
+    }
+  });
+
+  // 监听触摸滑动手势
+  let touchStartX = 0;
+  let touchEndX = 0;
+  
+  document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+  });
+  
+  document.addEventListener('touchmove', (e) => {
+    touchEndX = e.touches[0].clientX;
+  });
+  
+  document.addEventListener('touchend', () => {
+    const swipeDistance = touchEndX - touchStartX;
+    
+    // 从左向右滑动打开用户列表
+    if (swipeDistance > 100 && touchStartX < 50) {
+      sidebarWrapper.classList.add('active');
+      sidebarOverlay.classList.add('active');
+    }
+    
+    // 从右向左滑动关闭用户列表
+    if (swipeDistance < -100 && sidebarWrapper.classList.contains('active')) {
+      sidebarWrapper.classList.remove('active');
+      sidebarOverlay.classList.remove('active');
     }
   });
 
@@ -146,38 +201,72 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // 添加回车发送消息功能
+  if (messageInput) {
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); // 阻止默认的换行行为
+        const sendBtn = document.getElementById('sendBtn');
+        if (!sendBtn.disabled) {
+          sendBtn.click();
+        }
+      }
+    });
+  }
 });
 
 export function updateUIState() {
   const hasConnections = hasActiveConnections();
   const isConnecting = hasConnectingPeers();
+  const hasOtherUsers = peerConnections.size > 0;
   
   const sendBtn = document.getElementById('sendBtn');
-  const sendFileBtn = document.getElementById('sendFileBtn');
   const messageInput = document.getElementById('messageInput');
+  const fileUploadBtn = document.querySelector('.file-upload-btn');
   const fileInput = document.getElementById('fileInput');
   
-  if (peerConnections.size === 0) {
+  if (!hasOtherUsers) {
     // 没有其他用户
-    sendBtn.disabled = false;
-    sendFileBtn.disabled = false;
-    messageInput.disabled = false;
-    fileInput.disabled = false;
-    messageInput.placeholder = '输入消息';
+    sendBtn.disabled = true;
+    messageInput.disabled = true;
+    if (fileUploadBtn) {
+      fileUploadBtn.style.pointerEvents = 'none';
+      fileUploadBtn.style.opacity = '0.5';
+    }
+    fileInput.disabled = true;
+    messageInput.placeholder = '等待其他用户加入...';
   } else if (isConnecting) {
     // 正在建立连接
     sendBtn.disabled = true;
-    sendFileBtn.disabled = true;
     messageInput.disabled = true;
+    if (fileUploadBtn) {
+      fileUploadBtn.style.pointerEvents = 'none';
+      fileUploadBtn.style.opacity = '0.5';
+    }
     fileInput.disabled = true;
     messageInput.placeholder = '正在建立连接...';
+  } else if (!hasConnections) {
+    // 有其他用户但没有成功建立连接
+    sendBtn.disabled = true;
+    messageInput.disabled = true;
+    if (fileUploadBtn) {
+      fileUploadBtn.style.pointerEvents = 'none';
+      fileUploadBtn.style.opacity = '0.5';
+    }
+    fileInput.disabled = true;
+    messageInput.placeholder = '等待与其他用户建立连接...';
+    displayMessage('系统: 正在等待与其他用户建立连接，请稍候...', 'system');
   } else {
     // 有其他用户且已建立连接
-    sendBtn.disabled = !hasConnections;
-    sendFileBtn.disabled = !hasConnections;
-    messageInput.disabled = !hasConnections;
-    fileInput.disabled = !hasConnections;
-    messageInput.placeholder = hasConnections ? '输入消息' : '连接已断开';
+    sendBtn.disabled = false;
+    messageInput.disabled = false;
+    if (fileUploadBtn) {
+      fileUploadBtn.style.pointerEvents = 'auto';
+      fileUploadBtn.style.opacity = '1';
+    }
+    fileInput.disabled = false;
+    messageInput.placeholder = '输入消息';
   }
 }
 
@@ -190,12 +279,73 @@ export function displayMessage(message, type = 'text') {
     messageElement.id = `file-${message.fileId}`;
     const senderName = message.senderId === socket.id ? '我' : 
                       (onlineUsers.get(message.senderId) || '未知用户');
-    messageElement.innerHTML = `${senderName} 发送文件: "${message.fileName}" (${formatSize(message.fileSize)})`;
+    
+    // 创建文件消息容器
+    const fileContainer = document.createElement('div');
+    fileContainer.className = 'file-message';
+    
+    // 添加文件图标和信息
+    const fileInfoSection = document.createElement('div');
+    fileInfoSection.className = 'file-info-section';
+    fileInfoSection.innerHTML = `
+      <div class="file-icon">
+        <svg width="24" height="24" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2ZM14 4L18 8H14V4ZM16 17H8V15H16V17ZM16 13H8V11H16V13Z"/>
+        </svg>
+      </div>
+      <div class="file-details">
+        <div class="file-name">${message.fileName}</div>
+        <div class="file-meta">
+          <span class="file-size">${formatSize(message.fileSize)}</span>
+          <span class="file-sender">${senderName}</span>
+        </div>
+      </div>
+    `;
+    
+    fileContainer.appendChild(fileInfoSection);
+    messageElement.appendChild(fileContainer);
   } else if (type === 'system') {
-    messageElement.textContent = message;
     messageElement.classList.add('system');
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    contentDiv.textContent = message;
+    messageElement.appendChild(contentDiv);
   } else if (type === 'text') {
-    messageElement.textContent = message;
+    // 判断是否是自己发送的消息
+    const isSelf = message.startsWith('我: ');
+    if (isSelf) {
+      messageElement.classList.add('self');
+    }
+    
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'message-content';
+    
+    // 分离发送者名称和消息内容
+    const [sender, ...contentParts] = message.split(': ');
+    const content = contentParts.join(': ');
+    
+    // 添加发送者名称
+    const senderDiv = document.createElement('div');
+    senderDiv.className = 'sender-name';
+    senderDiv.textContent = sender;
+    contentDiv.appendChild(senderDiv);
+    
+    // 添加消息内容
+    const textDiv = document.createElement('div');
+    textDiv.className = 'message-text';
+    textDiv.textContent = content;
+    contentDiv.appendChild(textDiv);
+    
+    // 添加时间戳
+    const timeDiv = document.createElement('div');
+    timeDiv.className = 'message-time';
+    timeDiv.textContent = new Date().toLocaleTimeString('zh-CN', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    contentDiv.appendChild(timeDiv);
+    
+    messageElement.appendChild(contentDiv);
   }
   
   messagesDiv.appendChild(messageElement);
@@ -203,69 +353,156 @@ export function displayMessage(message, type = 'text') {
 }
 
 export function updateProgressBar(fileId, progress, type = 'download', speed = 0) {
-  const progressBarId = `progress-${fileId}`;
-  let progressBar = document.getElementById(progressBarId);
+  const fileMessage = document.getElementById(`file-${fileId}`);
+  if (!fileMessage) return;
   
-  if (!progressBar) {
-    const container = document.createElement('div');
-    container.className = 'progress-container';
-    container.id = `progress-container-${fileId}`;
+  let progressContainer = document.getElementById(`progress-container-${fileId}`);
+  
+  if (!progressContainer) {
+    progressContainer = document.createElement('div');
+    progressContainer.className = 'progress-container';
+    progressContainer.id = `progress-container-${fileId}`;
     
-    progressBar = document.createElement('div');
-    progressBar.className = 'progress-bar';
-    progressBar.id = progressBarId;
+    progressContainer.innerHTML = `
+      <div class="progress-wrapper">
+        <div class="progress-bar" id="progress-${fileId}"></div>
+      </div>
+      <div class="status-container">
+        <div class="progress-text" id="progress-text-${fileId}">
+          ${type === 'download' ? '准备下载...' : '准备上传...'}
+        </div>
+        <div class="speed-text" id="speed-${fileId}"></div>
+      </div>
+    `;
     
-    const progressText = document.createElement('div');
-    progressText.className = 'progress-text';
-    progressText.id = `progress-text-${fileId}`;
-    
-    const speedText = document.createElement('div');
-    speedText.className = 'speed-text';
-    speedText.id = `speed-${fileId}`;
-    
-    container.appendChild(progressBar);
-    container.appendChild(progressText);
-    container.appendChild(speedText);
-    
-    const fileMessage = document.getElementById(`file-${fileId}`);
-    if (fileMessage) {
-      fileMessage.appendChild(container);
-    }
+    fileMessage.appendChild(progressContainer);
   }
   
+  const progressBar = document.getElementById(`progress-${fileId}`);
+  const progressText = document.getElementById(`progress-text-${fileId}`);
+  const speedText = document.getElementById(`speed-${fileId}`);
+  
+  // 更新进度条
   progressBar.style.width = `${progress}%`;
   
-  const progressText = document.getElementById(`progress-text-${fileId}`);
-  if (progressText) {
-    progressText.textContent = `${type === 'download' ? '下载' : '上传'}进度: ${progress}%`;
+  // 更新状态文本
+  if (progress === 100) {
+    progressText.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+      </svg>
+      ${type === 'download' ? '下载完成' : '上传完成'}
+    `;
+    progressText.classList.add('completed');
+    progressContainer.classList.add('completed');
+  } else {
+    progressText.textContent = `${type === 'download' ? '下载中' : '上传中'} ${progress}%`;
   }
   
-  const speedText = document.getElementById(`speed-${fileId}`);
-  if (speedText && speed > 0) {
-    let speedDisplay;
-    if (speed < 1024) {
-      speedDisplay = `${speed.toFixed(1)} B/s`;
-    } else if (speed < 1024 * 1024) {
-      speedDisplay = `${(speed / 1024).toFixed(1)} KB/s`;
-    } else {
-      speedDisplay = `${(speed / (1024 * 1024)).toFixed(1)} MB/s`;
-    }
-    speedText.textContent = speedDisplay;
+  // 更新速度显示
+  if (speed > 0) {
+    speedText.textContent = formatSpeed(speed);
   }
 }
 
+// 修改 updateUserList 函数
 export function updateUserList(users) {
   const userList = document.getElementById('userList');
   const sidebarTitle = document.querySelector('.sidebar h3');
   userList.innerHTML = '';
   
-  users.forEach(user => {
+  // 先添加自己
+  const selfUser = users.find(user => user.id === socket.id);
+  if (selfUser) {
     const li = document.createElement('li');
-    li.textContent = user.userId;
+    li.textContent = `${selfUser.userId} (我)`;
+    li.classList.add('self-user', 'connected');
     userList.appendChild(li);
+  }
+  
+  // 添加其他用户
+  users.forEach(user => {
+    if (user.id === socket.id) return; // 跳过自己
+    
+    const li = document.createElement('li');
+    const userSpan = document.createElement('span');
+    userSpan.textContent = user.userId;
+    li.appendChild(userSpan);
+    
+    // 获取连接状态
+    const connection = peerConnections.get(user.id);
+    const connectionInfo = connectionAttempts.get(user.id) || { attempts: 0, state: ConnectionState.DISCONNECTED };
+    let connectionState = connectionInfo.state;
+    
+    // 更新连接状态逻辑
+    if (connection) {
+      if (connection.dataChannel && connection.dataChannel.readyState === 'open') {
+        connectionState = ConnectionState.CONNECTED;
+      } else if (connection.pc.connectionState === 'connecting' || 
+                 connection.pc.connectionState === 'new') {
+        connectionState = ConnectionState.CONNECTING;
+      } else if (connectionInfo.attempts >= 3) {
+        connectionState = ConnectionState.FAILED;
+      } else if (connection.pc.connectionState === 'failed' || 
+                 connection.pc.connectionState === 'disconnected' ||
+                 connection.pc.connectionState === 'closed') {
+        connectionState = ConnectionState.DISCONNECTED;
+      }
+    }
+    
+    // 添加状态标识
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'connection-status';
+    switch (connectionState) {
+      case ConnectionState.CONNECTING:
+        statusSpan.textContent = ' (连接中...)';
+        break;
+      case ConnectionState.FAILED:
+        statusSpan.textContent = ' (连接失败)';
+        break;
+      case ConnectionState.DISCONNECTED:
+        statusSpan.textContent = ' (未连接)';
+        break;
+    }
+    li.appendChild(statusSpan);
+    
+    // 添加状态类
+    li.classList.add(connectionState);
+    
+    // 添加点击事件（在连接失败或断开时可点击）
+    if (connectionState === ConnectionState.FAILED || 
+        connectionState === ConnectionState.DISCONNECTED) {
+      li.style.cursor = 'pointer';
+      li.title = '点击重试连接';
+      li.onclick = () => retryConnection(user.id);
+    }
+    
+    userList.appendChild(li);
+    
+    // 调试日志
+    console.log(`用户 ${user.userId} 的连接状态:`, {
+      pcState: connection?.pc.connectionState,
+      dcState: connection?.dataChannel?.readyState,
+      attempts: connectionInfo.attempts,
+      resultState: connectionState
+    });
   });
 
   sidebarTitle.textContent = `在线用户 (${users.length})`;
+}
+
+// 添加重试连接函数
+function retryConnection(peerId) {
+  const connectionInfo = connectionAttempts.get(peerId);
+  if (connectionInfo) {
+    connectionInfo.attempts = 0;
+    connectionInfo.state = ConnectionState.CONNECTING;
+    connectionAttempts.set(peerId, connectionInfo);
+    
+    // 调用重连函数
+    reconnect(peerId);
+    updateUserList([...onlineUsers.entries()].map(([id, userId]) => ({ id, userId })));
+  }
 }
 
 function hasActiveConnections() {
@@ -304,6 +541,76 @@ export function showReconnectButton(targetId) {
   
   const messagesDiv = document.getElementById('messages');
   messagesDiv.appendChild(reconnectContainer);
+}
+
+// 添加显示文件接收提示的函数
+export function showFileReceivePrompt(fileInfo) {
+  const messagesDiv = document.getElementById('messages');
+  const promptElement = document.createElement('div');
+  promptElement.classList.add('message', 'file-receive-prompt');
+  
+  // 创建文件接收提示容器
+  const promptContainer = document.createElement('div');
+  promptContainer.className = 'file-receive-container';
+  
+  // 添加文件图标和信息
+  const fileInfoSection = document.createElement('div');
+  fileInfoSection.className = 'file-info-section';
+  fileInfoSection.innerHTML = `
+    <div class="file-icon">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2ZM14 4L18 8H14V4ZM16 17H8V15H16V17ZM16 13H8V11H16V13Z"/>
+      </svg>
+    </div>
+    <div class="file-details">
+      <div class="file-name">${fileInfo.fileName}</div>
+      <div class="file-size">${formatSize(fileInfo.fileSize)}</div>
+      <div class="sender-info">来自: ${onlineUsers.get(fileInfo.senderId) || '未知用户'}</div>
+    </div>
+  `;
+  
+  // 添加操作按钮
+  const actionButtons = document.createElement('div');
+  actionButtons.className = 'file-action-buttons';
+  
+  const acceptButton = document.createElement('button');
+  acceptButton.className = 'accept-file-btn';
+  acceptButton.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+    </svg>
+    接收
+  `;
+  
+  const rejectButton = document.createElement('button');
+  rejectButton.className = 'reject-file-btn';
+  rejectButton.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24">
+      <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+    </svg>
+    拒绝
+  `;
+  
+  actionButtons.appendChild(acceptButton);
+  actionButtons.appendChild(rejectButton);
+  
+  promptContainer.appendChild(fileInfoSection);
+  promptContainer.appendChild(actionButtons);
+  promptElement.appendChild(promptContainer);
+  
+  messagesDiv.appendChild(promptElement);
+  messagesDiv.scrollTop = messagesDiv.scrollHeight;
+  
+  return new Promise((resolve, reject) => {
+    acceptButton.onclick = () => {
+      promptElement.remove();
+      resolve(true);
+    };
+    rejectButton.onclick = () => {
+      promptElement.remove();
+      resolve(false);
+    };
+  });
 }
 
 // ... 其他 UI 相关函数 ... 
