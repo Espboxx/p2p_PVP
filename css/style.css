@@ -105,12 +105,28 @@ body {
 /* 消息样式优化 */
 .message {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   padding: 2px 16px;
   margin: 2px -16px;
   font-size: 0.9375rem;
   line-height: 1.375rem;
   margin-bottom: 24px;
+}
+
+/* 发送者名称 - 移到气泡外 */
+.sender-name {
+  font-size: 0.8125rem;
+  margin-bottom: 4px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 0 12px;
+}
+
+/* 消息内容行 */
+.message-row {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
 }
 
 /* 消息内容容器 */
@@ -123,28 +139,22 @@ body {
   white-space: pre-wrap;
 }
 
-/* 发送者名称 */
-.sender-name {
-  font-size: 0.8125rem;
-  margin-bottom: 4px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
 /* 自己发送的消息 */
 .message.self {
-  flex-direction: row-reverse;
+  align-items: flex-end;
+}
+
+.message.self .message-row {
+  justify-content: flex-end;
 }
 
 .message.self .message-content {
   background: var(--primary-color);
   color: white;
   border-radius: 16px 16px 4px 16px;
-  margin-left: auto;
 }
 
 .message.self .sender-name {
-  text-align: right;
   color: var(--primary-color);
 }
 
@@ -155,20 +165,38 @@ body {
   border-radius: 16px 16px 16px 4px;
 }
 
-/* 系统消息样式 */
+/* 系统消息动画 */
+@keyframes fadeOut {
+  from { opacity: 0.8; }
+  to { opacity: 0; }
+}
+
+/* 系统消息样式优化 */
 .message.system {
+  display: flex;
   justify-content: center;
-  color: var(--text-muted);
-  font-size: 0.875rem;
-  font-style: italic;
+  align-items: center;
   padding: 4px 16px;
-  margin-bottom: 8px;
+  margin: 8px 0;
+  opacity: 0.8;
+  animation: fadeInOut 5s ease forwards;
+  transition: opacity 0.3s ease;
 }
 
 .message.system .message-content {
   background: transparent;
   padding: 4px 8px;
   max-width: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+  text-align: center;
+}
+
+/* 移除系统消息的发送者名称和消息行容器 */
+.message.system .sender-name,
+.message.system .message-row {
+  display: none;
 }
 
 /* 时间戳样式优化 */
@@ -219,16 +247,16 @@ body {
   overflow-y: auto;
 }
 
-/* 输入区域样式 */
+/* 输入区域样式优化 */
 .input-area {
   margin: 0;
-  padding: 0 8px;
+  padding: 0;
   background: var(--input-bg);
   border-radius: 8px;
   display: flex;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: stretch; /* 确保所有子元素填满高度 */
   min-height: 44px;
+  overflow: hidden; /* 防止内容溢出圆角 */
 }
 
 /* 输入框样式优化 */
@@ -236,17 +264,15 @@ body {
   flex: 1;
   background: transparent;
   border: none;
-  padding: 12px 8px;
+  padding: 12px;
   color: var(--text-color);
   font-size: 0.9375rem;
   line-height: 1.375rem;
   resize: none;
-  min-height: 24px;
+  min-height: 20px; /* 调整最小高度 */
   max-height: 144px;
   overflow-y: auto;
-  display: block;
-  white-space: pre-wrap;
-  word-wrap: break-word;
+  margin: 0;
   width: 100%;
   box-sizing: border-box;
   font-family: inherit;
@@ -279,25 +305,41 @@ body {
   background-color: var(--secondary-bg);
 }
 
-/* 按钮样式 */
-.input-area button {
+/* 发送按钮样式优化 */
+#sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  min-height: 44px; /* 确保最小高度与输入区域一致 */
+  width: 44px;
   background: transparent;
   border: none;
-  padding: 8px;
-  color: var(--text-secondary);
+  border-left: 1px solid var(--tertiary-bg);
   cursor: pointer;
-  border-radius: 4px;
+  color: var(--text-secondary);
   transition: all 0.2s ease;
+  flex-shrink: 0; /* 防止按钮被压缩 */
 }
 
-.input-area button:hover:not(:disabled) {
+#sendBtn:hover {
   color: var(--text-color);
-  background: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
-.input-area button:disabled {
-  color: var(--text-muted);
+#sendBtn::before {
+  content: '';
+  width: 20px; /* 稍微调小图标 */
+  height: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='currentColor'%3E%3Cpath d='M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'/%3E%3C/svg%3E");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+#sendBtn:disabled {
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* 侧边栏样式优化 */
@@ -802,21 +844,31 @@ body {
   height: 18px;
 }
 
-/* 文件上传按钮样式 */
+/* 文件上传按钮样式优化 */
 .file-upload-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 8px;
-  color: var(--text-secondary);
+  padding: 0;
+  min-height: 44px; /* 确保最小高度与输入区域一致 */
+  width: 44px;
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--tertiary-bg);
   cursor: pointer;
-  border-radius: 4px;
+  color: var(--text-secondary);
   transition: all 0.2s ease;
+  flex-shrink: 0; /* 防止按钮被压缩 */
 }
 
 .file-upload-btn:hover {
   color: var(--text-color);
-  background: rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.file-upload-btn svg {
+  width: 20px; /* 稍微调小图标 */
+  height: 20px;
 }
 
 /* 移动端用户列表切换按钮 */
@@ -883,14 +935,24 @@ body {
 
 /* 文件消息样式优化 */
 .file-message {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
   background: var(--input-bg);
-  border-radius: 8px;
-  margin: 4px 0;
+  border-radius: 16px;
+  padding: 12px;
+  max-width: min(200px, 80vw); /* 根据屏幕宽度动态调整,最大200px */
   border: 1px solid var(--tertiary-bg);
+}
+
+.message.self .file-message {
+  background: var(--primary-color);
+  color: white;
+}
+
+.message.self .file-icon {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.message.self .file-meta {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .file-info-section {
@@ -900,7 +962,6 @@ body {
 }
 
 .file-icon {
-  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
@@ -910,19 +971,14 @@ body {
 }
 
 .file-name {
-  color: var(--text-color);
   font-weight: 500;
   margin-bottom: 4px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  word-break: break-all;
 }
 
 .file-meta {
-  display: flex;
-  gap: 12px;
-  color: var(--text-secondary);
   font-size: 0.85rem;
+  color: var(--text-secondary);
 }
 
 /* 进度条容器样式优化 */
@@ -930,11 +986,9 @@ body {
   background: rgba(0, 0, 0, 0.1);
   border-radius: 4px;
   padding: 8px;
+  margin-top: 8px;
   transition: all 0.3s ease;
-}
-
-.progress-container.completed {
-  background: rgba(59, 165, 92, 0.1);
+  max-width: 320px; /* 限制进度条宽度 */
 }
 
 .progress-wrapper {
@@ -942,7 +996,7 @@ body {
   height: 4px;
   border-radius: 2px;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .progress-bar {
@@ -1101,4 +1155,18 @@ body {
 .download-button[disabled] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 添加淡入淡出动画 */
+@keyframes fadeInOut {
+  0% { opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* 鼠标悬停时保持显示 */
+.message.system:hover {
+  animation-play-state: paused;
+  opacity: 0.8;
 } 

@@ -9,6 +9,14 @@ import { ongoingTransfers } from './fileTransfer.js';
 
 let sidebarCollapsed = false;
 
+// 添加一个用于存储最近系统消息的变量
+let lastSystemMessage = {
+  text: '',
+  element: null,
+  count: 0,
+  timer: null
+};
+
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
   const toggleButton = document.getElementById('sidebarToggle');
@@ -270,86 +278,187 @@ export function updateUIState() {
   }
 }
 
+// 修改系统消息过滤函数
+function shouldShowSystemMessage(message) {
+  // 定义重要的系统消息关键词
+  const importantKeywords = [
+    '连接失败',
+    '断开连接',
+    '文件传输',
+    '错误',
+    '等待其他用户',
+    '正在建立连接',
+    '连接成功',
+    '加入了房间',
+    '离开了房间',
+    '已接受文件',
+    '下载完成',
+    '上传完成'
+  ];
+  
+  // 检查消息是否包含重要关键词
+  return importantKeywords.some(keyword => message.includes(keyword));
+}
+
+// 修改系统消息的显示时间
+function updateSystemMessage(message, messageElement) {
+  // 更新最近的系统消息
+  lastSystemMessage = {
+    text: message,
+    element: messageElement,
+    count: 1,
+    timer: setTimeout(() => {
+      // 5秒后淡出消息
+      if (messageElement && messageElement.parentNode) {
+        messageElement.style.animation = 'fadeOut 1s ease forwards';
+        setTimeout(() => {
+          messageElement.remove();
+        }, 1000);
+      }
+      lastSystemMessage = { text: '', element: null, count: 0, timer: null };
+    }, 5000)
+  };
+}
+
+// 在 displayMessage 函数中修改系统消息的处理部分
 export function displayMessage(message, type = 'text') {
   const messagesDiv = document.getElementById('messages');
-  const messageElement = document.createElement('div');
-  messageElement.classList.add('message');
   
-  if (type === 'file') {
-    messageElement.id = `file-${message.fileId}`;
-    const senderName = message.senderId === socket.id ? '我' : 
-                      (onlineUsers.get(message.senderId) || '未知用户');
+  if (type === 'system') {
+    // 只显示重要的系统消息
+    if (!shouldShowSystemMessage(message)) {
+      console.log('Skipped system message:', message);
+      return;
+    }
     
-    // 创建文件消息容器
-    const fileContainer = document.createElement('div');
-    fileContainer.className = 'file-message';
+    // 检查是否与上一条系统消息相似
+    if (isSimularMessage(message, lastSystemMessage.text)) {
+      if (lastSystemMessage.timer) {
+        clearTimeout(lastSystemMessage.timer);
+      }
+      
+      lastSystemMessage.count++;
+      const contentDiv = lastSystemMessage.element.querySelector('.message-content');
+      contentDiv.textContent = `${message} ${lastSystemMessage.count > 1 ? `(${lastSystemMessage.count})` : ''}`;
+      
+      // 更新消息的显示时间
+      updateSystemMessage(message, lastSystemMessage.element);
+      return;
+    }
     
-    // 添加文件图标和信息
-    const fileInfoSection = document.createElement('div');
-    fileInfoSection.className = 'file-info-section';
-    fileInfoSection.innerHTML = `
-      <div class="file-icon">
-        <svg width="24" height="24" viewBox="0 0 24 24">
-          <path fill="currentColor" d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2ZM14 4L18 8H14V4ZM16 17H8V15H16V17ZM16 13H8V11H16V13Z"/>
-        </svg>
-      </div>
-      <div class="file-details">
-        <div class="file-name">${message.fileName}</div>
-        <div class="file-meta">
-          <span class="file-size">${formatSize(message.fileSize)}</span>
-          <span class="file-sender">${senderName}</span>
-        </div>
-      </div>
-    `;
-    
-    fileContainer.appendChild(fileInfoSection);
-    messageElement.appendChild(fileContainer);
-  } else if (type === 'system') {
-    messageElement.classList.add('system');
+    // 创建新的系统消息
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', 'system');
     const contentDiv = document.createElement('div');
     contentDiv.className = 'message-content';
     contentDiv.textContent = message;
     messageElement.appendChild(contentDiv);
-  } else if (type === 'text') {
-    // 判断是否是自己发送的消息
-    const isSelf = message.startsWith('我: ');
-    if (isSelf) {
-      messageElement.classList.add('self');
+    
+    // 更新系统消息状态
+    updateSystemMessage(message, messageElement);
+    
+    messagesDiv.appendChild(messageElement);
+  } else {
+    // 创建基础消息元素
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    
+    if (type === 'file') {
+      messageElement.id = `file-${message.fileId}`;
+      const senderName = message.senderId === socket.id ? '我' : 
+                        (onlineUsers.get(message.senderId) || '未知用户');
+      
+      // 添加发送者名称
+      const senderDiv = document.createElement('div');
+      senderDiv.className = 'sender-name';
+      senderDiv.textContent = senderName;
+      messageElement.appendChild(senderDiv);
+      
+      // 创建消息行容器
+      const messageRow = document.createElement('div');
+      messageRow.className = 'message-row';
+      
+      // 创建文件消息容器
+      const fileContainer = document.createElement('div');
+      fileContainer.className = 'file-message';
+      
+      // 添加文件图标和信息
+      const fileInfoSection = document.createElement('div');
+      fileInfoSection.className = 'file-info-section';
+      fileInfoSection.innerHTML = `
+        <div class="file-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2ZM14 4L18 8H14V4ZM16 17H8V15H16V17ZM16 13H8V11H16V13Z"/>
+          </svg>
+        </div>
+        <div class="file-details">
+          <div class="file-name">${message.fileName}</div>
+          <div class="file-meta">
+            <span class="file-size">${formatSize(message.fileSize)}</span>
+          </div>
+        </div>
+      `;
+      
+      fileContainer.appendChild(fileInfoSection);
+      messageRow.appendChild(fileContainer);
+      messageElement.appendChild(messageRow);
+      
+      // 如果是自己发送的文件，添加self类
+      if (message.senderId === socket.id) {
+        messageElement.classList.add('self');
+      }
+      
+    } else if (type === 'text') {
+      // 判断是否是自己发送的消息
+      const isSelf = message.startsWith('我: ');
+      if (isSelf) {
+        messageElement.classList.add('self');
+      }
+      
+      // 分离发送者名称和消息内容
+      const [sender, ...contentParts] = message.split(': ');
+      const content = contentParts.join(': ');
+      
+      // 添加发送者名称
+      const senderDiv = document.createElement('div');
+      senderDiv.className = 'sender-name';
+      senderDiv.textContent = sender;
+      messageElement.appendChild(senderDiv);
+      
+      // 创建消息行容器
+      const messageRow = document.createElement('div');
+      messageRow.className = 'message-row';
+      
+      // 添加消息内容
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'message-content';
+      contentDiv.textContent = content;
+      
+      // 添加时间戳
+      const timeDiv = document.createElement('div');
+      timeDiv.className = 'message-time';
+      timeDiv.textContent = new Date().toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      contentDiv.appendChild(timeDiv);
+      
+      messageRow.appendChild(contentDiv);
+      messageElement.appendChild(messageRow);
     }
     
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    
-    // 分离发送者名称和消息内容
-    const [sender, ...contentParts] = message.split(': ');
-    const content = contentParts.join(': ');
-    
-    // 添加发送者名称
-    const senderDiv = document.createElement('div');
-    senderDiv.className = 'sender-name';
-    senderDiv.textContent = sender;
-    contentDiv.appendChild(senderDiv);
-    
-    // 添加消息内容
-    const textDiv = document.createElement('div');
-    textDiv.className = 'message-text';
-    textDiv.textContent = content;
-    contentDiv.appendChild(textDiv);
-    
-    // 添加时间戳
-    const timeDiv = document.createElement('div');
-    timeDiv.className = 'message-time';
-    timeDiv.textContent = new Date().toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    contentDiv.appendChild(timeDiv);
-    
-    messageElement.appendChild(contentDiv);
+    messagesDiv.appendChild(messageElement);
   }
   
-  messagesDiv.appendChild(messageElement);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// 判断两条消息是否相似
+function isSimularMessage(msg1, msg2) {
+  // 移除时间戳和具体用户ID等动态内容
+  const normalize = (msg) => msg.replace(/\d+/g, 'X')
+                              .replace(/[a-zA-Z0-9-]+/g, 'X');
+  return normalize(msg1) === normalize(msg2);
 }
 
 export function updateProgressBar(fileId, progress, type = 'download', speed = 0) {

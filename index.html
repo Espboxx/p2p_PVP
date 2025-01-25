@@ -48,14 +48,14 @@
         <div id="messages"></div>
         <div class="input-container">
           <div class="input-area">
-            <label for="fileInput" class="file-upload-btn" title="发送文件">
+            <label class="file-upload-btn" for="fileInput" title="发送文件">
               <svg width="24" height="24" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
               </svg>
             </label>
             <input type="file" id="fileInput" hidden>
-            <input type="text" id="messageInput" placeholder="输入消息">
-            <button id="sendBtn">发送</button>
+            <textarea id="messageInput" placeholder="输入消息..." rows="1"></textarea>
+            <button id="sendBtn" title="发送消息"></button>
           </div>
         </div>
       </div>

@@ -118,26 +118,32 @@ export function handleFileAccept(message, senderId) {
 
   console.log(`${senderId} 接受了文件 ${fileId}`);
   transfer.state = TransferState.TRANSFERRING;
+  
+  // 当第一个用户接受文件时，添加进度条
+  if (transfer.acceptedPeers.size === 0) {
+    updateProgressBar(fileId, 0, 'upload');
+  }
+  
+  transfer.acceptedPeers.add(senderId);
   sendFileChunks(fileId, senderId);
 }
 
 export function sendFile() {
   const fileInput = document.getElementById('fileInput');
   const file = fileInput.files[0];
-  if (!file) {
-    alert('请选择要发送的文件');
-    return;
-  }
-
+  
+  if (!file) return;
+  
   // 检查是否有活跃连接
   if (!hasActiveConnections()) {
     displayMessage('系统: 没有可用的连接，无法发送文件', 'system');
     return;
   }
-
+  
   const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   const chunks = Math.ceil(file.size / fileChunkSize);
-
+  
+  // 创建传输记录
   ongoingTransfers[fileId] = {
     file,
     fileName: file.name,
@@ -146,11 +152,20 @@ export function sendFile() {
     chunks,
     state: TransferState.WAITING,
     startTime: Date.now(),
-    pendingPeers: new Set(), // 添加待接收的用户集合
-    acceptedPeers: new Set() // 添加已接受的用户集合
+    pendingPeers: new Set(),
+    acceptedPeers: new Set()
   };
-
+  
   let sentCount = 0;
+  
+  // 首先显示发送者的文件消息（不显示进度条）
+  displayMessage({
+    fileId,
+    fileName: file.name,
+    fileSize: file.size,
+    senderId: socket.id
+  }, 'file');
+  
   // 向所有连接的用户发送文件传输请求
   peerConnections.forEach(({ dataChannel }, peerId) => {
     if (dataChannel && dataChannel.readyState === 'open') {
@@ -161,25 +176,25 @@ export function sendFile() {
         fileType: file.type,
         fileSize: file.size,
         chunks,
-        senderId: socket.id  // 添加发送者ID
+        senderId: socket.id
       };
       try {
         dataChannel.send(JSON.stringify(fileInfo));
         ongoingTransfers[fileId].pendingPeers.add(peerId);
         sentCount++;
-        console.log(`已向 ${peerId} 发送文件传输请求`);
       } catch (error) {
         console.error(`向 ${peerId} 发送文件请求失败:`, error);
       }
     }
   });
-
-  if (sentCount > 0) {
-    displayMessage(`系统: 正在等待用户接收文件 "${file.name}"...`, 'system');
-  } else {
+  
+  if (sentCount === 0) {
     displayMessage('系统: 没有可用的连接，无法发送文件', 'system');
     delete ongoingTransfers[fileId];
   }
+  
+  // 重置文件输入框
+  fileInput.value = '';
 }
 
 function sendFileChunks(fileId, targetId) {
