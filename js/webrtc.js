@@ -9,7 +9,6 @@ const CONNECTION_TIMEOUT = 20000; // 20秒超时
 let connectionTimeouts = new Map(); // 存储连接超时计时器
 let reconnectAttempts = new Map(); // 记录重连次数
 const connectionAttempts = new Map(); // 存储连接尝试次数
-const RECONNECT_MAX_ATTEMPTS = 3; // 最大重连次数
 
 export async function createPeerConnection(targetId) {
     const userId = onlineUsers.get(targetId);
@@ -176,7 +175,7 @@ export async function createPeerConnection(targetId) {
             connectionAttempts.set(targetId, { attempts: attempts + 1 });
             
             // 根据重试次数决定状态
-            const state = attempts >= RECONNECT_MAX_ATTEMPTS ? 
+            const state = attempts >= 3 ? 
                          ConnectionState.FAILED : ConnectionState.DISCONNECTED;
             
             updateConnectionState(targetId, state, {
@@ -192,11 +191,11 @@ export async function createPeerConnection(targetId) {
             });
             
             // 如果还没达到最大重试次数，尝试重连
-            if (attempts < RECONNECT_MAX_ATTEMPTS && onlineUsers.has(targetId)) {
+            if (attempts < 3 && onlineUsers.has(targetId)) {
                 console.log(`准备第 ${attempts + 1} 次重连...`);
                 setTimeout(() => {
                     reconnect(targetId).catch(err => {
-                        console.error(`重连失败 (尝试 ${attempts + 1}/${RECONNECT_MAX_ATTEMPTS}):`, err);
+                        console.error(`重连失败 (尝试 ${attempts + 1}/3):`, err);
                     });
                 }, 1000 * (attempts + 1)); // 递增重连延迟
             }
@@ -210,45 +209,39 @@ export async function createPeerConnection(targetId) {
 }
 
 function handleConnectionTimeout(targetId) {
-    console.log(`与 ${targetId} 的连接超时`);
-    const connection = peerConnections.get(targetId);
-    if (connection) {
-        connection.pc.close();
-        peerConnections.delete(targetId);
+    clearConnectionTimeout(targetId);
+    
+    // 检查用户是否仍然有效
+    const userId = onlineUsers.get(targetId);
+    if (!userId) {
+        console.log(`连接超时的用户 ${targetId} 已不存在，停止重连`);
+        return;
     }
     
-    displayMessage(`系统: 与 ${onlineUsers.get(targetId) || '未知用户'} 的连接超时`, 'system');
-    showReconnectButton(targetId);
-    updateUIState();
+    displayMessage(`系统: 与 ${userId} 的连接超时，正在重试...`, 'system');
+    handleConnectionFailure(targetId); // 直接触发重连
 }
 
 function handleConnectionFailure(targetId) {
     clearConnectionTimeout(targetId);
     
-    // 获取当前重试次数
-    const attempts = connectionAttempts.get(targetId)?.attempts || 0;
-    
     if (!onlineUsers.has(targetId)) {
         console.log(`用户 ${targetId} 已离线，不进行重连`);
         peerConnections.delete(targetId);
-        connectionAttempts.delete(targetId); // 清理重试记录
+        connectionAttempts.delete(targetId);
         updateConnectionState(targetId, ConnectionState.DISCONNECTED, {
             onlineUsers,
             updateUserList,
             displayMessage
         });
-    } else if (attempts >= RECONNECT_MAX_ATTEMPTS) {
-        console.log(`达到最大重试次数 (${RECONNECT_MAX_ATTEMPTS})，停止重连`);
-        peerConnections.delete(targetId);
-        updateConnectionState(targetId, ConnectionState.FAILED, {
-            onlineUsers,
-            updateUserList,
-            displayMessage
-        });
     } else {
-        // 增加重试次数
+        // 获取当前重试次数并增加
+        const attempts = connectionAttempts.get(targetId)?.attempts || 0;
         connectionAttempts.set(targetId, { attempts: attempts + 1 });
         console.log(`准备第 ${attempts + 1} 次重连...`);
+        
+        // 使用递增延迟，但设置最大延迟为10秒
+        const delay = Math.min(1000 * (attempts + 1), 10000);
         
         setTimeout(async () => {
             try {
@@ -256,7 +249,7 @@ function handleConnectionFailure(targetId) {
             } catch (err) {
                 console.error('自动重连失败:', err);
             }
-        }, 1000 * (attempts + 1)); // 递增延迟
+        }, delay);
     }
 }
 

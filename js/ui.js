@@ -550,7 +550,7 @@ export function updateProgressBar(fileId, progress, type = 'download', speed = 0
   }
 }
 
-// 修改 updateUserList 函数
+// 修改 updateUserList 函数，移除重连按钮逻辑
 export function updateUserList(users) {
   const userList = document.getElementById('userList');
   const sidebarTitle = document.querySelector('.sidebar h3');
@@ -586,12 +586,8 @@ export function updateUserList(users) {
       } else if (connection.pc.connectionState === 'connecting' || 
                  connection.pc.connectionState === 'new') {
         connectionState = ConnectionState.CONNECTING;
-      } else if (connectionInfo.attempts >= 3) {
-        connectionState = ConnectionState.FAILED;
-      } else if (connection.pc.connectionState === 'failed' || 
-                 connection.pc.connectionState === 'disconnected' ||
-                 connection.pc.connectionState === 'closed') {
-        connectionState = ConnectionState.DISCONNECTED;
+      } else {
+        connectionState = ConnectionState.CONNECTING; // 将失败状态也显示为连接中
       }
     }
     
@@ -602,11 +598,8 @@ export function updateUserList(users) {
       case ConnectionState.CONNECTING:
         statusSpan.textContent = ' (连接中...)';
         break;
-      case ConnectionState.FAILED:
-        statusSpan.textContent = ' (连接失败)';
-        break;
       case ConnectionState.DISCONNECTED:
-        statusSpan.textContent = ' (未连接)';
+        statusSpan.textContent = ' (重新连接中...)';
         break;
     }
     li.appendChild(statusSpan);
@@ -614,40 +607,10 @@ export function updateUserList(users) {
     // 添加状态类
     li.classList.add(connectionState);
     
-    // 添加点击事件（在连接失败或断开时可点击）
-    if (connectionState === ConnectionState.FAILED || 
-        connectionState === ConnectionState.DISCONNECTED) {
-      li.style.cursor = 'pointer';
-      li.title = '点击重试连接';
-      li.onclick = () => retryConnection(user.id);
-    }
-    
     userList.appendChild(li);
-    
-    // 调试日志
-    console.log(`用户 ${user.userId} 的连接状态:`, {
-      pcState: connection?.pc.connectionState,
-      dcState: connection?.dataChannel?.readyState,
-      attempts: connectionInfo.attempts,
-      resultState: connectionState
-    });
   });
-
+  
   sidebarTitle.textContent = `在线用户 (${users.length})`;
-}
-
-// 添加重试连接函数
-function retryConnection(peerId) {
-  const connectionInfo = connectionAttempts.get(peerId);
-  if (connectionInfo) {
-    connectionInfo.attempts = 0;
-    connectionInfo.state = ConnectionState.CONNECTING;
-    connectionAttempts.set(peerId, connectionInfo);
-    
-    // 调用重连函数
-    reconnect(peerId);
-    updateUserList([...onlineUsers.entries()].map(([id, userId]) => ({ id, userId })));
-  }
 }
 
 function hasActiveConnections() {
@@ -668,24 +631,6 @@ function hasConnectingPeers() {
     }
   });
   return hasConnecting;
-}
-
-export function showReconnectButton(targetId) {
-  const reconnectContainer = document.createElement('div');
-  reconnectContainer.className = 'reconnect-container';
-  reconnectContainer.id = `reconnect-${targetId}`;
-  
-  const reconnectBtn = document.createElement('button');
-  reconnectBtn.textContent = `重新连接 ${onlineUsers.get(targetId) || '未知用户'}`;
-  reconnectBtn.onclick = () => {
-    reconnect(targetId);
-    reconnectContainer.remove();
-  };
-  
-  reconnectContainer.appendChild(reconnectBtn);
-  
-  const messagesDiv = document.getElementById('messages');
-  messagesDiv.appendChild(reconnectContainer);
 }
 
 // 添加显示文件接收提示的函数
