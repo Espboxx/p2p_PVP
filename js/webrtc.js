@@ -1,7 +1,7 @@
 import { rtcConfig } from './config.js';
 import { socket, onlineUsers } from './socket.js';
 import { setupDataChannel } from './dataChannel.js';
-import { displayMessage, updateUIState, showReconnectButton, updateUserList } from './ui.js';
+import { displayMessage, updateUIState, updateUserList } from './ui.js';
 import { ConnectionState, updateConnectionState } from './connectionState.js';
 
 export const peerConnections = new Map(); // key: socketId, value: { pc: RTCPeerConnection, dataChannel: RTCDataChannel }
