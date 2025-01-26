@@ -24,6 +24,16 @@ export const onlineUsers = new Map(); // key: socketId, value: userId
 // Socket事件处理
 socket.on('room-joined', ({ roomId, members }) => {
   console.log(`成功加入房间 ${roomId}，成员列表:`, members);
+  
+  // 检查是否有未知用户
+  const unknownUsers = members.filter(member => !member.userId);
+  if (unknownUsers.length > 0) {
+    console.warn('检测到未知用户，不加入房间:', unknownUsers);
+    displayMessage('系统: 检测到异常用户，已自动退出房间', 'system');
+    leaveRoom();
+    return;
+  }
+  
   const roomDisplay = document.getElementById('roomDisplay');
   roomDisplay.textContent = `房间: ${roomId}`;
   
@@ -61,6 +71,15 @@ socket.on('room-joined', ({ roomId, members }) => {
 socket.on('room-users-updated', (members) => {
   console.log('收到用户列表更新:', members);
   
+  // 检查是否有未知用户
+  const unknownUsers = members.filter(member => !member.userId);
+  if (unknownUsers.length > 0) {
+    console.warn('检测到未知用户，退出房间:', unknownUsers);
+    displayMessage('系统: 检测到异常用户，已自动退出房间', 'system');
+    leaveRoom();
+    return;
+  }
+  
   // 更新本地用户列表
   onlineUsers.clear();
   members.forEach(member => {
@@ -72,6 +91,13 @@ socket.on('room-users-updated', (members) => {
 });
 
 socket.on('user-connected', ({ id, userId }) => {
+  if (!userId) {
+    console.warn('检测到未知用户尝试连接:', id);
+    displayMessage('系统: 检测到异常用户，已自动退出房间', 'system');
+    leaveRoom();
+    return;
+  }
+  
   console.log(`新用户 ${userId} (${id}) 加入`);
   displayMessage(`系统: 用户 ${userId} 已加入房间`, 'system');
   
@@ -195,4 +221,46 @@ socket.on('peer-connection-state', ({ fromId, targetId, state, dataChannelState 
       displayMessage
     });
   }
-}); 
+});
+
+// 添加退出房间的函数
+function leaveRoom() {
+  if (currentRoom) {
+    // 关闭所有对等连接
+    peerConnections.forEach((connection, peerId) => {
+      if (connection.pc) {
+        connection.pc.close();
+      }
+      if (connection.dataChannel) {
+        connection.dataChannel.close();
+      }
+    });
+    peerConnections.clear();
+    
+    // 清空在线用户列表
+    onlineUsers.clear();
+    
+    // 通知服务器离开房间
+    socket.emit('leave-room', currentRoom);
+    
+    // 重置房间状态
+    currentRoom = null;
+    
+    // 更新UI
+    const roomDisplay = document.getElementById('roomDisplay');
+    roomDisplay.textContent = '未加入房间';
+    
+    document.getElementById('chatSection').classList.add('hidden');
+    displayMessage('系统: 已退出房间', 'system');
+    updateUIState();
+    
+    // 显示重新加入按钮
+    const rejoinBtn = document.createElement('button');
+    rejoinBtn.textContent = '重新加入公共房间';
+    rejoinBtn.onclick = () => {
+      rejoinBtn.remove();
+      joinRoom(DEFAULT_ROOM);
+    };
+    document.getElementById('messages').appendChild(rejoinBtn);
+  }
+} 
