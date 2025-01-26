@@ -9,6 +9,7 @@ import {
   updateConnectionState,
   connectionAttempts 
 } from './connectionState.js';
+import { CryptoHelper } from './crypto.js';
 
 // 在文件开头添加默认房间常量
 const DEFAULT_ROOM = 'public';
@@ -113,9 +114,19 @@ socket.on('signal', async ({ from, signal }) => {
 });
 
 // 修改 socket 连接后的逻辑
-socket.on('connect', () => {
-  // 自动加入公共聊天室
-  joinRoom(DEFAULT_ROOM);
+socket.on('connect', async () => {
+  try {
+    // 初始化加密助手
+    if (!window.cryptoHelper) {
+      window.cryptoHelper = new CryptoHelper();
+    }
+    
+    // 自动加入公共聊天室
+    joinRoom(DEFAULT_ROOM);
+  } catch (error) {
+    console.error('初始化加密系统失败:', error);
+    displayMessage(`系统: ${error.message}`, 'system');
+  }
 });
 
 // 修改 joinRoom 函数

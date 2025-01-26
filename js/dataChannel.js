@@ -34,18 +34,30 @@ export async function setupDataChannel(channel, targetId) {
     displayMessage('系统: 正在建立加密连接...', 'system');
     
     try {
-      // 生成并发送公钥
-      if (!cryptoHelper.keyPair) {
-        await cryptoHelper.generateKeyPair();
+      // 检查是否已经初始化了 cryptoHelper
+      if (!window.cryptoHelper) {
+        try {
+          window.cryptoHelper = new CryptoHelper();
+        } catch (error) {
+          console.error('初始化 CryptoHelper 失败:', error);
+          displayMessage(`系统: ${error.message}`, 'system');
+          channel.close();
+          return;
+        }
       }
-      const publicKey = await cryptoHelper.exportPublicKey();
+
+      // 生成并发送公钥
+      if (!window.cryptoHelper.keyPair) {
+        await window.cryptoHelper.generateKeyPair();
+      }
+      const publicKey = await window.cryptoHelper.exportPublicKey();
       channel.send(JSON.stringify({
         type: 'public-key',
         key: Array.from(publicKey)
       }));
     } catch (error) {
       console.error('生成或发送公钥失败:', error);
-      displayMessage('系统: 建立加密连接失败，请重试', 'system');
+      displayMessage(`系统: 加密连接失败 - ${error.message}`, 'system');
       channel.close();
     }
   };

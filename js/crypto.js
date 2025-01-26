@@ -1,21 +1,31 @@
 // 加密工具模块
 export class CryptoHelper {
   constructor() {
+    // 检查浏览器是否支持 Web Crypto API
+    if (!window.crypto || !window.crypto.subtle) {
+      throw new Error('当前浏览器不支持 Web Crypto API，请使用最新版本的 Chrome、Firefox、Safari 或 Edge');
+    }
+    
     this.keyPair = null;
     this.sharedKeys = new Map(); // 存储与每个peer的共享密钥
   }
 
   // 生成密钥对
   async generateKeyPair() {
-    this.keyPair = await window.crypto.subtle.generateKey(
-      {
-        name: "ECDH",
-        namedCurve: "P-256"
-      },
-      true,
-      ["deriveKey", "deriveBits"]
-    );
-    return this.keyPair;
+    try {
+      this.keyPair = await window.crypto.subtle.generateKey(
+        {
+          name: "ECDH",
+          namedCurve: "P-256"
+        },
+        true,
+        ["deriveKey", "deriveBits"]
+      );
+      return this.keyPair;
+    } catch (error) {
+      console.error('生成密钥对失败:', error);
+      throw new Error('生成密钥对失败，请检查浏览器设置或使用其他现代浏览器');
+    }
   }
 
   // 导出公钥
