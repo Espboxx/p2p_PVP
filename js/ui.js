@@ -230,10 +230,12 @@ export function updateUIState() {
   const fileInput = document.getElementById('fileInput');
   const fileButton = document.getElementById('fileButton');
   
-  // 检查是否有任何一个连接成功的用户
+  // 检查是否有任何一个连接成功且数据通道打开的用户
   let hasConnectedPeer = false;
-  peerConnections.forEach(({ pc }) => {
-    if (pc.connectionState === 'connected') {
+  peerConnections.forEach(({ pc, dataChannel }) => {
+    if (pc.connectionState === 'connected' && 
+        dataChannel && 
+        dataChannel.readyState === 'open') {
       hasConnectedPeer = true;
     }
   });
@@ -253,12 +255,16 @@ export function updateUIState() {
     messageInput.placeholder = hasConnectingPeers() ? '正在建立连接...' : '等待其他用户加入...';
   }
 
-  // 更新用户列表
-  updateUserList(Array.from(onlineUsers.entries()).map(([id, userId]) => ({
-    id,
-    userId,
-    connectionState: peerConnections.get(id)?.pc.connectionState || 'new'
-  })));
+  // 更新用户列表，同时显示连接和数据通道状态
+  updateUserList(Array.from(onlineUsers.entries()).map(([id, userId]) => {
+    const connection = peerConnections.get(id);
+    return {
+      id,
+      userId,
+      connectionState: connection?.pc.connectionState || 'new',
+      dataChannelState: connection?.dataChannel?.readyState || 'closed'
+    };
+  }));
 }
 
 // 修改系统消息过滤函数
@@ -536,19 +542,10 @@ export function updateProgressBar(fileId, progress, type = 'download', speed = 0
 // 修改 updateUserList 函数，移除重连按钮逻辑
 export function updateUserList(users) {
   const userList = document.getElementById('userList');
-  const sidebarTitle = document.querySelector('.sidebar h3');
+  const sidebarTitle = document.getElementById('sidebarTitle');
+  if (!userList || !sidebarTitle) return;
+  
   userList.innerHTML = '';
-  
-  // 先添加自己
-  const selfUser = users.find(user => user.id === socket.id);
-  if (selfUser) {
-    const li = document.createElement('li');
-    li.textContent = `${selfUser.userId} (我)`;
-    li.classList.add('self-user', 'connected');
-    userList.appendChild(li);
-  }
-  
-  // 添加其他用户
   users.forEach(user => {
     if (user.id === socket.id) return; // 跳过自己
     
@@ -564,10 +561,12 @@ export function updateUserList(users) {
     
     // 更新连接状态逻辑
     if (connection) {
-      if (connection.dataChannel && connection.dataChannel.readyState === 'open') {
+      if (connection.dataChannel && connection.dataChannel.readyState === 'open' && 
+          connection.pc.connectionState === 'connected') {
         connectionState = ConnectionState.CONNECTED;
       } else if (connection.pc.connectionState === 'connecting' || 
-                 connection.pc.connectionState === 'new') {
+                 connection.pc.connectionState === 'new' ||
+                 (connection.dataChannel && connection.dataChannel.readyState === 'connecting')) {
         connectionState = ConnectionState.CONNECTING;
       } else {
         connectionState = ConnectionState.CONNECTING; // 将失败状态也显示为连接中
@@ -578,6 +577,9 @@ export function updateUserList(users) {
     const statusSpan = document.createElement('span');
     statusSpan.className = 'connection-status';
     switch (connectionState) {
+      case ConnectionState.CONNECTED:
+        statusSpan.textContent = ' (已连接)';
+        break;
       case ConnectionState.CONNECTING:
         statusSpan.textContent = ' (连接中...)';
         break;
@@ -588,12 +590,12 @@ export function updateUserList(users) {
     li.appendChild(statusSpan);
     
     // 添加状态类
-    li.classList.add(connectionState);
+    li.classList.add(connectionState.toLowerCase());
     
     userList.appendChild(li);
   });
   
-  sidebarTitle.textContent = `在线用户 (${users.length})`;
+  sidebarTitle.textContent = `在线用户 (${users.length - 1})`; // 减去自己
 }
 
 function hasActiveConnections() {
@@ -608,8 +610,10 @@ function hasActiveConnections() {
 
 function hasConnectingPeers() {
   let hasConnecting = false;
-  peerConnections.forEach(({ pc }) => {
-    if (pc.connectionState === 'connecting' || pc.connectionState === 'new') {
+  peerConnections.forEach(({ pc, dataChannel }) => {
+    // 检查连接状态和数据通道状态
+    if ((pc.connectionState === 'connecting' || pc.connectionState === 'new') ||
+        (dataChannel && dataChannel.readyState === 'connecting')) {
       hasConnecting = true;
     }
   });
