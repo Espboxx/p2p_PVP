@@ -4,9 +4,29 @@ export class CryptoHelper {
     this.keyPair = null;
     this.sharedKeys = new Map(); // 存储与每个peer的共享密钥
     this.useSimpleEncryption = !window.crypto || !window.crypto.subtle;
+    this.keyPairPromise = null; // 添加这个属性来跟踪密钥对生成
     
     if (this.useSimpleEncryption) {
       console.warn('当前浏览器不支持 Web Crypto API，将使用基础加密方式');
+    }
+  }
+
+  // 确保密钥对已生成
+  async ensureKeyPair() {
+    if (this.keyPair) {
+      return this.keyPair;
+    }
+    
+    if (this.keyPairPromise) {
+      return this.keyPairPromise;
+    }
+    
+    this.keyPairPromise = this.generateKeyPair();
+    try {
+      this.keyPair = await this.keyPairPromise;
+      return this.keyPair;
+    } finally {
+      this.keyPairPromise = null;
     }
   }
 

@@ -23,7 +23,10 @@ export async function setupDataChannel(channel, targetId) {
 
   // 初始化密钥交换Promise
   const keyExchangePromise = new Promise((resolve) => {
-    peerConnections.get(targetId).keyExchangeResolve = resolve;
+    const connection = peerConnections.get(targetId);
+    if (connection) {
+      connection.keyExchangeResolve = resolve;
+    }
   });
 
   // 标记是否已完成密钥交换
@@ -39,19 +42,17 @@ export async function setupDataChannel(channel, targetId) {
         window.cryptoHelper = new CryptoHelper();
       }
 
-      // 确保密钥对已生成
-      if (!window.cryptoHelper.keyPair) {
-        await window.cryptoHelper.generateKeyPair();
-      }
+      // 等待密钥对生成完成
+      await window.cryptoHelper.ensureKeyPair();
 
+      // 导出并发送公钥
       const publicKey = await window.cryptoHelper.exportPublicKey();
       channel.send(JSON.stringify({
         type: 'public-key',
         key: Array.from(publicKey)
       }));
     } catch (error) {
-      console.error('生成或发送公钥失败:', error);
-      displayMessage(`系统: 加密连接失败 - ${error.message}`, 'system');
+      console.error('发送公钥失败:', error);
       channel.close();
     }
   };
@@ -64,9 +65,7 @@ export async function setupDataChannel(channel, targetId) {
         if (message.type === 'public-key') {
           try {
             // 确保本地密钥对已生成
-            if (!window.cryptoHelper.keyPair) {
-              await window.cryptoHelper.generateKeyPair();
-            }
+            await window.cryptoHelper.ensureKeyPair();
             
             // 处理收到的公钥
             const publicKey = await cryptoHelper.importPublicKey(new Uint8Array(message.key));
@@ -96,8 +95,9 @@ export async function setupDataChannel(channel, targetId) {
             return;
           } catch (error) {
             console.error('处理公钥失败:', error);
-            displayMessage('系统: 密钥交换失败，请重试', 'system');
-            channel.close();
+            displayMessage(`系统: 与 ${onlineUsers.get(targetId) || '未知用户'} 的密钥交换失败，正在重试...`, 'system');
+            // 触发重连而不是直接关闭通道
+            handleConnectionFailure(targetId);
             return;
           }
         }
