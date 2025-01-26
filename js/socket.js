@@ -74,41 +74,41 @@ socket.on('room-users-updated', (members) => {
   // 检查是否有未知用户
   const unknownUsers = members.filter(member => !member.userId);
   if (unknownUsers.length > 0) {
-    console.warn('检测到未知用户，退出房间:', unknownUsers);
-    displayMessage('系统: 检测到异常用户，已自动退出房间', 'system');
-    leaveRoom();
+    console.warn('检测到未知用户:', unknownUsers);
+    // 不再自动退出房间，只记录日志
     return;
   }
   
   // 更新本地用户列表
   onlineUsers.clear();
   members.forEach(member => {
-    onlineUsers.set(member.id, member.userId);
-    console.log(`在线用户: ${member.userId} (${member.id})`);
+    if (member.userId) { // 只添加有效用户
+      onlineUsers.set(member.id, member.userId);
+      console.log(`在线用户: ${member.userId} (${member.id})`);
+    }
   });
   
-  updateUserList(members);
+  updateUserList(members.filter(member => member.userId)); // 只显示有效用户
 });
 
 socket.on('user-connected', ({ id, userId }) => {
   if (!userId) {
     console.warn('检测到未知用户尝试连接:', id);
-    displayMessage('系统: 检测到异常用户，已自动退出房间', 'system');
-    leaveRoom();
+    // 不再自动退出房间，只记录日志
     return;
   }
   
   console.log(`新用户 ${userId} (${id}) 加入`);
   displayMessage(`系统: 用户 ${userId} 已加入房间`, 'system');
+  onlineUsers.set(id, userId);
   
-  // 初始化连接状态为 CONNECTING
+  // 只为有效用户创建连接
   updateConnectionState(id, ConnectionState.CONNECTING, {
     onlineUsers,
     updateUserList,
     displayMessage
   });
   
-  // 创建新的连接
   createPeerConnection(id).catch(err => {
     console.error(`创建与 ${userId} 的连接失败:`, err);
     updateConnectionState(id, ConnectionState.DISCONNECTED, {

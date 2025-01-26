@@ -12,14 +12,10 @@ const connectionAttempts = new Map(); // 存储连接尝试次数
 const RECONNECT_MAX_ATTEMPTS = 3; // 最大重连次数
 
 export async function createPeerConnection(targetId) {
-    // 检查目标用户是否在线
-    if (!onlineUsers.has(targetId)) {
+    const userId = onlineUsers.get(targetId);
+    // 检查目标用户是否在线且有效
+    if (!userId) {
         console.log(`不创建与未知用户 ${targetId} 的连接`);
-        updateConnectionState(targetId, ConnectionState.DISCONNECTED, {
-            onlineUsers,
-            updateUserList,
-            displayMessage
-        });
         return null;
     }
 
@@ -209,10 +205,6 @@ export async function createPeerConnection(targetId) {
         return pc;
     } catch (err) {
         console.error('创建对等连接失败:', err);
-        if (onlineUsers.has(targetId)) {
-            displayMessage('系统: 创建连接失败，正在尝试重新连接...', 'system');
-            await reconnectAllPeers();
-        }
         throw err;
     }
 }
@@ -296,8 +288,9 @@ function clearConnectionTimeout(targetId) {
 }
 
 export async function reconnect(targetId) {
-    // 检查目标用户是否在线
-    if (!onlineUsers.has(targetId)) {
+    const userId = onlineUsers.get(targetId);
+    // 检查目标用户是否在线且有效
+    if (!userId) {
         console.log(`不重连未知用户 ${targetId}`);
         return;
     }
@@ -381,14 +374,14 @@ export async function handleSignal(from, signal) {
     }
 }
 
-// 修改 reconnectAllPeers 函数，只重连在线用户
+// 修改 reconnectAllPeers 函数，添加未知用户检查
 async function reconnectAllPeers() {
     const disconnectedPeers = [];
     
-    // 只检查在线用户的连接状态
+    // 只检查在线且有效的用户的连接状态
     onlineUsers.forEach((userId, peerId) => {
-        // 跳过自己
-        if (peerId === socket.id) return;
+        // 跳过自己和未知用户
+        if (peerId === socket.id || !userId) return;
         
         const connection = peerConnections.get(peerId);
         if (!connection) {
@@ -408,6 +401,13 @@ async function reconnectAllPeers() {
         // 并行处理所有重连
         await Promise.allSettled(
             disconnectedPeers.map(async (peerId) => {
+                // 再次检查用户是否有效
+                const userId = onlineUsers.get(peerId);
+                if (!userId) {
+                    console.log(`跳过未知用户 ${peerId} 的重连`);
+                    return;
+                }
+                
                 try {
                     await reconnect(peerId);
                 } catch (err) {
