@@ -34,22 +34,16 @@ export async function setupDataChannel(channel, targetId) {
     displayMessage('系统: 正在建立加密连接...', 'system');
     
     try {
-      // 检查是否已经初始化了 cryptoHelper
+      // 确保 cryptoHelper 已初始化
       if (!window.cryptoHelper) {
-        try {
-          window.cryptoHelper = new CryptoHelper();
-        } catch (error) {
-          console.error('初始化 CryptoHelper 失败:', error);
-          displayMessage(`系统: ${error.message}`, 'system');
-          channel.close();
-          return;
-        }
+        window.cryptoHelper = new CryptoHelper();
       }
 
-      // 生成并发送公钥
+      // 确保密钥对已生成
       if (!window.cryptoHelper.keyPair) {
         await window.cryptoHelper.generateKeyPair();
       }
+
       const publicKey = await window.cryptoHelper.exportPublicKey();
       channel.send(JSON.stringify({
         type: 'public-key',
@@ -69,21 +63,35 @@ export async function setupDataChannel(channel, targetId) {
         
         if (message.type === 'public-key') {
           try {
+            // 确保本地密钥对已生成
+            if (!window.cryptoHelper.keyPair) {
+              await window.cryptoHelper.generateKeyPair();
+            }
+            
             // 处理收到的公钥
             const publicKey = await cryptoHelper.importPublicKey(new Uint8Array(message.key));
             await cryptoHelper.deriveSharedKey(publicKey, targetId);
             keyExchangeCompleted = true;
-            peerConnections.get(targetId).keyExchangeResolve();
+            
+            const connection = peerConnections.get(targetId);
+            if (connection?.keyExchangeResolve) {
+              connection.keyExchangeResolve();
+            }
             
             // 发送连接测试消息
             await sendConnectionTest(targetId);
             
             // 启动连接测试超时计时器
             const timeoutId = setTimeout(() => {
-              peerConnections.get(targetId).connectionReject(new Error('连接测试超时'));
+              const conn = peerConnections.get(targetId);
+              if (conn?.connectionReject) {
+                conn.connectionReject(new Error('连接测试超时'));
+              }
             }, 5000); // 5秒超时
             
-            peerConnections.get(targetId).testTimeoutId = timeoutId;
+            if (connection) {
+              connection.testTimeoutId = timeoutId;
+            }
             
             return;
           } catch (error) {
@@ -128,7 +136,7 @@ export async function setupDataChannel(channel, targetId) {
         }
       }
     } catch (error) {
-      console.error('消息处理错误:', error);
+      console.error('处理消息失败:', error);
     }
   };
 
