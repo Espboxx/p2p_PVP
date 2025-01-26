@@ -6,10 +6,10 @@ import { ConnectionState, updateConnectionState } from './connectionState.js';
 
 export const peerConnections = new Map(); // key: socketId, value: { pc: RTCPeerConnection, dataChannel: RTCDataChannel }
 const CONNECTION_TIMEOUT = 20000; // 20秒超时
-const RECONNECT_ATTEMPTS = 3; // 最大重连次数
-const RECONNECT_DELAY = 2000; // 重连延迟(ms)
 let connectionTimeouts = new Map(); // 存储连接超时计时器
 let reconnectAttempts = new Map(); // 记录重连次数
+const connectionAttempts = new Map(); // 存储连接尝试次数
+const RECONNECT_MAX_ATTEMPTS = 3; // 最大重连次数
 
 export async function createPeerConnection(targetId) {
     // 检查目标用户是否在线
@@ -157,11 +157,14 @@ export async function createPeerConnection(targetId) {
         // 修改数据通道状态变化监听
         dataChannel.onopen = () => {
             console.log(`Data channel to ${targetId} opened`);
+            resetConnectionAttempts(targetId); // 重置重连次数
+            
             updateConnectionState(targetId, ConnectionState.CONNECTED, {
                 onlineUsers,
                 updateUserList,
                 displayMessage
             });
+            
             socket.emit('connection-state-change', {
                 targetId,
                 state: pc.connectionState,
@@ -171,8 +174,13 @@ export async function createPeerConnection(targetId) {
 
         dataChannel.onclose = () => {
             console.log(`Data channel to ${targetId} closed`);
-            const connectionInfo = connectionAttempts.get(targetId);
-            const state = connectionInfo && connectionInfo.attempts >= 3 ? 
+            
+            // 获取或初始化连接尝试信息
+            let attempts = connectionAttempts.get(targetId)?.attempts || 0;
+            connectionAttempts.set(targetId, { attempts: attempts + 1 });
+            
+            // 根据重试次数决定状态
+            const state = attempts >= RECONNECT_MAX_ATTEMPTS ? 
                          ConnectionState.FAILED : ConnectionState.DISCONNECTED;
             
             updateConnectionState(targetId, state, {
@@ -180,11 +188,22 @@ export async function createPeerConnection(targetId) {
                 updateUserList,
                 displayMessage
             });
+            
             socket.emit('connection-state-change', {
                 targetId,
                 state: pc.connectionState,
                 dataChannelState: 'closed'
             });
+            
+            // 如果还没达到最大重试次数，尝试重连
+            if (attempts < RECONNECT_MAX_ATTEMPTS && onlineUsers.has(targetId)) {
+                console.log(`准备第 ${attempts + 1} 次重连...`);
+                setTimeout(() => {
+                    reconnect(targetId).catch(err => {
+                        console.error(`重连失败 (尝试 ${attempts + 1}/${RECONNECT_MAX_ATTEMPTS}):`, err);
+                    });
+                }, 1000 * (attempts + 1)); // 递增重连延迟
+            }
         };
 
         return pc;
@@ -214,50 +233,38 @@ function handleConnectionTimeout(targetId) {
 function handleConnectionFailure(targetId) {
     clearConnectionTimeout(targetId);
     
+    // 获取当前重试次数
+    const attempts = connectionAttempts.get(targetId)?.attempts || 0;
+    
     if (!onlineUsers.has(targetId)) {
         console.log(`用户 ${targetId} 已离线，不进行重连`);
         peerConnections.delete(targetId);
+        connectionAttempts.delete(targetId); // 清理重试记录
         updateConnectionState(targetId, ConnectionState.DISCONNECTED, {
             onlineUsers,
             updateUserList,
             displayMessage
         });
-        updateUIState();
-        return;
-    }
-    
-    const attempts = reconnectAttempts.get(targetId) || 0;
-    if (attempts < RECONNECT_ATTEMPTS) {
-        reconnectAttempts.set(targetId, attempts + 1);
-        updateConnectionState(targetId, ConnectionState.CONNECTING, {
-            onlineUsers,
-            updateUserList,
-            displayMessage
-        });
-        
-        setTimeout(async () => {
-            try {
-                await autoReconnect(targetId);
-            } catch (err) {
-                console.error('自动重连失败:', err);
-                if (attempts + 1 === RECONNECT_ATTEMPTS) {
-                    updateConnectionState(targetId, ConnectionState.FAILED, {
-                        onlineUsers,
-                        updateUserList,
-                        displayMessage
-                    });
-                }
-            }
-        }, RECONNECT_DELAY);
-    } else {
+    } else if (attempts >= RECONNECT_MAX_ATTEMPTS) {
+        console.log(`达到最大重试次数 (${RECONNECT_MAX_ATTEMPTS})，停止重连`);
         peerConnections.delete(targetId);
         updateConnectionState(targetId, ConnectionState.FAILED, {
             onlineUsers,
             updateUserList,
             displayMessage
         });
-        updateUIState();
-        reconnectAttempts.delete(targetId);
+    } else {
+        // 增加重试次数
+        connectionAttempts.set(targetId, { attempts: attempts + 1 });
+        console.log(`准备第 ${attempts + 1} 次重连...`);
+        
+        setTimeout(async () => {
+            try {
+                await autoReconnect(targetId);
+            } catch (err) {
+                console.error('自动重连失败:', err);
+            }
+        }, 1000 * (attempts + 1)); // 递增延迟
     }
 }
 
@@ -409,6 +416,11 @@ async function reconnectAllPeers() {
             })
         );
     }
+}
+
+// 添加重置连接尝试次数的函数
+export function resetConnectionAttempts(targetId) {
+    connectionAttempts.delete(targetId);
 }
 
 // ... 其他 WebRTC 相关函数 ... 
