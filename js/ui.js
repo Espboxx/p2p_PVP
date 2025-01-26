@@ -225,57 +225,40 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 export function updateUIState() {
-  const hasConnections = hasActiveConnections();
-  const isConnecting = hasConnectingPeers();
-  const hasOtherUsers = peerConnections.size > 0;
-  
-  const sendBtn = document.getElementById('sendBtn');
   const messageInput = document.getElementById('messageInput');
-  const fileUploadBtn = document.querySelector('.file-upload-btn');
+  const sendButton = document.getElementById('sendButton');
   const fileInput = document.getElementById('fileInput');
+  const fileButton = document.getElementById('fileButton');
   
-  if (!hasOtherUsers) {
-    // 没有其他用户
-    sendBtn.disabled = true;
-    messageInput.disabled = true;
-    if (fileUploadBtn) {
-      fileUploadBtn.style.pointerEvents = 'none';
-      fileUploadBtn.style.opacity = '0.5';
+  // 检查是否有任何一个连接成功的用户
+  let hasConnectedPeer = false;
+  peerConnections.forEach(({ pc }) => {
+    if (pc.connectionState === 'connected') {
+      hasConnectedPeer = true;
     }
-    fileInput.disabled = true;
-    messageInput.placeholder = '等待其他用户加入...';
-  } else if (isConnecting) {
-    // 正在建立连接
-    sendBtn.disabled = true;
-    messageInput.disabled = true;
-    if (fileUploadBtn) {
-      fileUploadBtn.style.pointerEvents = 'none';
-      fileUploadBtn.style.opacity = '0.5';
-    }
-    fileInput.disabled = true;
-    messageInput.placeholder = '正在建立连接...';
-  } else if (!hasConnections) {
-    // 有其他用户但没有成功建立连接
-    sendBtn.disabled = true;
-    messageInput.disabled = true;
-    if (fileUploadBtn) {
-      fileUploadBtn.style.pointerEvents = 'none';
-      fileUploadBtn.style.opacity = '0.5';
-    }
-    fileInput.disabled = true;
-    messageInput.placeholder = '等待与其他用户建立连接...';
-    displayMessage('系统: 正在等待与其他用户建立连接，请稍候...', 'system');
-  } else {
-    // 有其他用户且已建立连接
-    sendBtn.disabled = false;
+  });
+
+  // 如果有至少一个连接成功的用户，启用所有输入控件
+  if (hasConnectedPeer) {
     messageInput.disabled = false;
-    if (fileUploadBtn) {
-      fileUploadBtn.style.pointerEvents = 'auto';
-      fileUploadBtn.style.opacity = '1';
-    }
+    sendButton.disabled = false;
     fileInput.disabled = false;
-    messageInput.placeholder = '输入消息';
+    fileButton.disabled = false;
+    messageInput.placeholder = '输入消息...';
+  } else {
+    messageInput.disabled = true;
+    sendButton.disabled = true;
+    fileInput.disabled = true;
+    fileButton.disabled = true;
+    messageInput.placeholder = hasConnectingPeers() ? '正在建立连接...' : '等待其他用户加入...';
   }
+
+  // 更新用户列表
+  updateUserList(Array.from(onlineUsers.entries()).map(([id, userId]) => ({
+    id,
+    userId,
+    connectionState: peerConnections.get(id)?.pc.connectionState || 'new'
+  })));
 }
 
 // 修改系统消息过滤函数
