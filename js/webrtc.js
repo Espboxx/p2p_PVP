@@ -309,52 +309,66 @@ export async function reconnect(targetId) {
     }
 }
 
-export async function handleSignal(from, signal) {
+export async function handleSignal(targetId, signal) {
     try {
-        let connection = peerConnections.get(from);
+        // 获取或创建连接
+        let connection = peerConnections.get(targetId);
         if (!connection) {
-            connection = { pc: await createPeerConnection(from) };
-            peerConnections.set(from, connection);
+            console.log(`为 ${targetId} 创建新的连接`);
+            await createPeerConnection(targetId);
+            connection = peerConnections.get(targetId);
         }
-        const pc = connection.pc;
+        
+        if (!connection || !connection.pc) {
+            console.error('无法获取有效的连接对象');
+            return;
+        }
 
+        const pc = connection.pc;
+        
         switch (signal.type) {
             case 'offer':
-                // 确保在设置远程描述前处于稳定状态
-                if (pc.signalingState !== 'stable') {
-                    console.log('信令状态不稳定，等待回滚...');
-                    await Promise.all([
-                        pc.setLocalDescription({ type: 'rollback' }),
-                        pc.setRemoteDescription(signal.offer)
-                    ]);
-                } else {
+                try {
                     await pc.setRemoteDescription(signal.offer);
+                    await handleRemoteDescriptionSet(connection);
+                    const answer = await pc.createAnswer();
+                    await pc.setLocalDescription(answer);
+                    
+                    socket.emit('signal', {
+                        to: targetId,
+                        signal: { 
+                            type: 'answer', 
+                            answer: pc.localDescription 
+                        }
+                    });
+                } catch (err) {
+                    console.error('处理 offer 失败:', err);
                 }
-                
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                
-                socket.emit('signal', {
-                    to: from,
-                    signal: { type: 'answer', answer }
-                });
                 break;
 
             case 'answer':
-                // 只在有待处理的 offer 时设置 answer
-                if (pc.signalingState === 'have-local-offer') {
+                try {
                     await pc.setRemoteDescription(signal.answer);
-                } else {
-                    console.log('忽略 answer，当前状态:', pc.signalingState);
+                    await handleRemoteDescriptionSet(connection);
+                } catch (err) {
+                    console.error('处理 answer 失败:', err);
                 }
                 break;
 
             case 'candidate':
-                // 只在连接建立后添加 ICE candidate
-                if (pc.remoteDescription) {
-                    await pc.addIceCandidate(signal.candidate);
-                } else {
-                    console.log('延迟处理 ICE candidate，等待远程描述...');
+                try {
+                    // 如果还没有 remoteDescription，将 candidate 存起来稍后添加
+                    if (!pc.remoteDescription) {
+                        console.log('延迟处理 ICE candidate，等待远程描述...');
+                        if (!connection.pendingCandidates) {
+                            connection.pendingCandidates = [];
+                        }
+                        connection.pendingCandidates.push(signal.candidate);
+                    } else {
+                        await pc.addIceCandidate(signal.candidate);
+                    }
+                } catch (err) {
+                    console.error('添加 ICE candidate 失败:', err);
                 }
                 break;
 
@@ -364,6 +378,28 @@ export async function handleSignal(from, signal) {
     } catch (err) {
         console.error('信令处理错误:', err);
         displayMessage(`系统: 连接建立失败，请刷新页面重试`, 'system');
+    }
+}
+
+// 添加一个函数来处理待处理的 ICE candidates
+async function processPendingCandidates(connection) {
+    if (connection.pendingCandidates && connection.pendingCandidates.length > 0) {
+        console.log(`处理 ${connection.pendingCandidates.length} 个待处理的 ICE candidates`);
+        try {
+            for (const candidate of connection.pendingCandidates) {
+                await connection.pc.addIceCandidate(candidate);
+            }
+            connection.pendingCandidates = [];
+        } catch (err) {
+            console.error('处理待处理的 ICE candidates 失败:', err);
+        }
+    }
+}
+
+// 修改 setRemoteDescription 后的处理
+async function handleRemoteDescriptionSet(connection) {
+    if (connection.pc.remoteDescription) {
+        await processPendingCandidates(connection);
     }
 }
 
