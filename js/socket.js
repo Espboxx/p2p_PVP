@@ -9,7 +9,6 @@ import {
   updateConnectionState,
   connectionAttempts 
 } from './connectionState.js';
-import { CryptoHelper } from './crypto.js';
 
 // 在文件开头添加默认房间常量
 const DEFAULT_ROOM = 'public';
@@ -36,8 +35,20 @@ socket.on('room-joined', ({ roomId, members }) => {
   
   const roomDisplay = document.getElementById('roomDisplay');
   roomDisplay.textContent = `房间: ${roomId}`;
+  currentRoom = roomId;
   
   document.getElementById('chatSection').classList.remove('hidden');
+  
+  // 更新在线用户列表
+  onlineUsers.clear();
+  members.forEach(member => {
+    if (member.userId) {
+      onlineUsers.set(member.id, member.userId);
+    }
+  });
+  
+  // 更新UI显示
+  updateUserList(members);
   
   if (members.length <= 1) {
     displayMessage(`系统: 已成功加入房间 ${roomId}`, 'system');
@@ -75,26 +86,25 @@ socket.on('room-users-updated', (members) => {
   const unknownUsers = members.filter(member => !member.userId);
   if (unknownUsers.length > 0) {
     console.warn('检测到未知用户:', unknownUsers);
-    // 不再自动退出房间，只记录日志
     return;
   }
   
   // 更新本地用户列表
   onlineUsers.clear();
   members.forEach(member => {
-    if (member.userId) { // 只添加有效用户
+    if (member.userId) {
       onlineUsers.set(member.id, member.userId);
       console.log(`在线用户: ${member.userId} (${member.id})`);
     }
   });
   
-  updateUserList(members.filter(member => member.userId)); // 只显示有效用户
+  // 立即更新UI显示
+  updateUserList(members);
 });
 
 socket.on('user-connected', ({ id, userId }) => {
   if (!userId) {
     console.warn('检测到未知用户尝试连接:', id);
-    // 不再自动退出房间，只记录日志
     return;
   }
   
@@ -141,18 +151,8 @@ socket.on('signal', async ({ from, signal }) => {
 
 // 修改 socket 连接后的逻辑
 socket.on('connect', async () => {
-  try {
-    // 初始化加密助手
-    if (!window.cryptoHelper) {
-      window.cryptoHelper = new CryptoHelper();
-    }
-    
-    // 自动加入公共聊天室
-    joinRoom(DEFAULT_ROOM);
-  } catch (error) {
-    console.error('初始化加密系统失败:', error);
-    displayMessage(`系统: ${error.message}`, 'system');
-  }
+  // 自动加入公共聊天室
+  joinRoom(DEFAULT_ROOM);
 });
 
 // 修改 joinRoom 函数

@@ -87,23 +87,40 @@ export async function createPeerConnection(targetId) {
         pc.onconnectionstatechange = () => {
             console.log(`Connection state changed to: ${pc.connectionState} for peer ${targetId}`);
             
+            // 添加更详细的状态日志
+            console.log(`ICE Connection state: ${pc.iceConnectionState}`);
+            console.log(`Data channel state: ${dataChannel.readyState}`);
+            
             let connectionState;
-            if (dataChannel.readyState === 'open') {
+            
+            // 分离连接状态检查逻辑
+            if (pc.connectionState === 'connected' && dataChannel.readyState === 'open') {
                 connectionState = ConnectionState.CONNECTED;
+                // 连接成功时重置重连计数
+                connectionAttempts.delete(targetId);
             } else if (pc.connectionState === 'connecting' || pc.connectionState === 'new') {
                 connectionState = ConnectionState.CONNECTING;
-            } else if (pc.connectionState === 'failed' || 
-                      pc.connectionState === 'disconnected' || 
-                      pc.connectionState === 'closed') {
-                const connectionInfo = connectionAttempts.get(targetId);
-                if (connectionInfo && connectionInfo.attempts >= 3) {
+            } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+                // 获取当前重连次数
+                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
+                connectionAttempts.set(targetId, { attempts });
+                
+                if (attempts >= 3) {
                     connectionState = ConnectionState.FAILED;
+                    console.log(`连接失败，已重试 ${attempts} 次`);
                 } else {
                     connectionState = ConnectionState.DISCONNECTED;
+                    // 设置重连延迟，避免立即重连
+                    setTimeout(() => {
+                        if (onlineUsers.has(targetId)) {
+                            console.log(`尝试第 ${attempts} 次重连...`);
+                            handleConnectionFailure(targetId);
+                        }
+                    }, 1000 * attempts);
                 }
             }
 
-            // 更新本地状态
+            // 只在状态确实发生变化时更新
             if (connectionState) {
                 updateConnectionState(targetId, connectionState, {
                     onlineUsers,
@@ -123,81 +140,47 @@ export async function createPeerConnection(targetId) {
             if (pc.connectionState === 'connected') {
                 clearConnectionTimeout(targetId);
                 const peerName = onlineUsers.get(targetId) || '未知用户';
+                displayMessage(`系统: 与 ${peerName} 的连接已建立`, 'system');
                 updateUIState();
-            } else if (pc.connectionState === 'failed' || 
-                      pc.connectionState === 'disconnected' || 
-                      pc.connectionState === 'closed') {
-                handleConnectionFailure(targetId);
             }
         };
       
-        // 添加ICE连接状态变化监听
+        // 添加 ICE 连接状态监听
         pc.oniceconnectionstatechange = () => {
             console.log(`ICE连接状态 (${targetId}):`, pc.iceConnectionState);
-            const peerName = onlineUsers.get(targetId) || '未知用户';
             
-            if (pc.iceConnectionState === 'connected') {
-                displayMessage(`系统: 与 ${peerName} 的网络连接已建立`, 'system');
-                // 连接成功时重置重连次数
-                reconnectAttempts.delete(targetId);
-            } else if (pc.iceConnectionState === 'disconnected') {
-                displayMessage(`系统: 与 ${peerName} 的网络连接已断开，正在尝试重连...`, 'system');
-                handleConnectionFailure(targetId);
-            } else if (pc.iceConnectionState === 'failed') {
-                displayMessage(`系统: 与 ${peerName} 的网络连接失败`, 'system');
-                handleConnectionFailure(targetId);
+            // 只在 ICE 连接失败时处理
+            if (pc.iceConnectionState === 'failed') {
+                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
+                if (attempts < 3) {
+                    console.log(`ICE 连接失败，尝试重启 ICE...`);
+                    pc.restartIce();
+                }
             }
         };
 
-        // 修改数据通道状态变化监听
+        // 修改数据通道状态处理
         dataChannel.onopen = () => {
             console.log(`Data channel to ${targetId} opened`);
-            resetConnectionAttempts(targetId); // 重置重连次数
-            
-            updateConnectionState(targetId, ConnectionState.CONNECTED, {
-                onlineUsers,
-                updateUserList,
-                displayMessage
-            });
-            
-            socket.emit('connection-state-change', {
-                targetId,
-                state: pc.connectionState,
-                dataChannelState: 'open'
-            });
+            // 确保连接状态正确
+            if (pc.connectionState === 'connected') {
+                updateConnectionState(targetId, ConnectionState.CONNECTED, {
+                    onlineUsers,
+                    updateUserList,
+                    displayMessage
+                });
+            }
         };
 
         dataChannel.onclose = () => {
             console.log(`Data channel to ${targetId} closed`);
-            
-            // 获取或初始化连接尝试信息
-            let attempts = connectionAttempts.get(targetId)?.attempts || 0;
-            connectionAttempts.set(targetId, { attempts: attempts + 1 });
-            
-            // 根据重试次数决定状态
-            const state = attempts >= 3 ? 
-                         ConnectionState.FAILED : ConnectionState.DISCONNECTED;
-            
-            updateConnectionState(targetId, state, {
-                onlineUsers,
-                updateUserList,
-                displayMessage
-            });
-            
-            socket.emit('connection-state-change', {
-                targetId,
-                state: pc.connectionState,
-                dataChannelState: 'closed'
-            });
-            
-            // 如果还没达到最大重试次数，尝试重连
-            if (attempts < 3 && onlineUsers.has(targetId)) {
-                console.log(`准备第 ${attempts + 1} 次重连...`);
-                setTimeout(() => {
-                    reconnect(targetId).catch(err => {
-                        console.error(`重连失败 (尝试 ${attempts + 1}/3):`, err);
-                    });
-                }, 1000 * (attempts + 1)); // 递增重连延迟
+            // 只在连接仍然存在时处理关闭事件
+            if (peerConnections.has(targetId)) {
+                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
+                if (attempts < 3) {
+                    console.log(`数据通道关闭，尝试重新建立...`);
+                    handleConnectionFailure(targetId);
+                }
             }
         };
 
@@ -329,8 +312,17 @@ export async function handleSignal(targetId, signal) {
         switch (signal.type) {
             case 'offer':
                 try {
-                    await pc.setRemoteDescription(signal.offer);
-                    await handleRemoteDescriptionSet(connection);
+                    // 检查状态是否允许设置远程 offer
+                    if (pc.signalingState !== 'stable') {
+                        console.log('当前状态不是 stable，正在回滚...');
+                        await Promise.all([
+                            pc.setLocalDescription({type: "rollback"}),
+                            pc.setRemoteDescription(signal.offer)
+                        ]);
+                    } else {
+                        await pc.setRemoteDescription(signal.offer);
+                    }
+                    
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
                     
@@ -343,29 +335,47 @@ export async function handleSignal(targetId, signal) {
                     });
                 } catch (err) {
                     console.error('处理 offer 失败:', err);
+                    console.log('当前信令状态:', pc.signalingState);
+                    console.log('当前连接状态:', pc.connectionState);
+                    handleConnectionFailure(targetId);
                 }
                 break;
 
             case 'answer':
                 try {
-                    await pc.setRemoteDescription(signal.answer);
-                    await handleRemoteDescriptionSet(connection);
+                    // 检查状态是否允许设置远程 answer
+                    if (pc.signalingState === 'have-local-offer') {
+                        await pc.setRemoteDescription(signal.answer);
+                        console.log(`成功设置来自 ${targetId} 的远程answer`);
+                    } else {
+                        console.warn(`无法设置远程 answer，当前状态: ${pc.signalingState}`);
+                        // 如果状态不对，可能需要重新协商
+                        if (pc.signalingState === 'stable') {
+                            console.log('触发重新协商...');
+                            await pc.createOffer();
+                        }
+                    }
                 } catch (err) {
                     console.error('处理 answer 失败:', err);
+                    console.log('当前信令状态:', pc.signalingState);
+                    console.log('当前连接状态:', pc.connectionState);
+                    handleConnectionFailure(targetId);
                 }
                 break;
 
             case 'candidate':
                 try {
-                    // 如果还没有 remoteDescription，将 candidate 存起来稍后添加
-                    if (!pc.remoteDescription) {
-                        console.log('延迟处理 ICE candidate，等待远程描述...');
-                        if (!connection.pendingCandidates) {
-                            connection.pendingCandidates = [];
+                    if (signal.candidate) {
+                        if (pc.remoteDescription) {
+                            await pc.addIceCandidate(signal.candidate);
+                        } else {
+                            // 如果还没有远程描述，先保存候选项
+                            if (!connection.pendingCandidates) {
+                                connection.pendingCandidates = [];
+                            }
+                            connection.pendingCandidates.push(signal.candidate);
+                            console.log('保存待处理的 ICE candidate');
                         }
-                        connection.pendingCandidates.push(signal.candidate);
-                    } else {
-                        await pc.addIceCandidate(signal.candidate);
                     }
                 } catch (err) {
                     console.error('添加 ICE candidate 失败:', err);

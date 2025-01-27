@@ -226,10 +226,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
 export function updateUIState() {
   const messageInput = document.getElementById('messageInput');
-  const sendButton = document.getElementById('sendButton');
+  const sendButton = document.getElementById('sendBtn');
   const fileInput = document.getElementById('fileInput');
-  const fileButton = document.getElementById('fileButton');
+  const fileButton = document.querySelector('.file-upload-btn');
   
+  // 添加元素存在性检查
+  if (!messageInput || !sendButton || !fileInput || !fileButton) {
+    console.warn('UI元素未找到:', { messageInput, sendButton, fileInput, fileButton });
+    return;
+  }
+
   // 检查是否有任何一个连接成功且数据通道打开的用户
   let hasConnectedPeer = false;
   peerConnections.forEach(({ pc, dataChannel }) => {
@@ -245,13 +251,15 @@ export function updateUIState() {
     messageInput.disabled = false;
     sendButton.disabled = false;
     fileInput.disabled = false;
-    fileButton.disabled = false;
+    fileButton.style.pointerEvents = 'auto';
+    fileButton.style.opacity = '1';
     messageInput.placeholder = '输入消息...';
   } else {
     messageInput.disabled = true;
     sendButton.disabled = true;
     fileInput.disabled = true;
-    fileButton.disabled = true;
+    fileButton.style.pointerEvents = 'none';
+    fileButton.style.opacity = '0.5';
     messageInput.placeholder = hasConnectingPeers() ? '正在建立连接...' : '等待其他用户加入...';
   }
 
@@ -542,60 +550,81 @@ export function updateProgressBar(fileId, progress, type = 'download', speed = 0
 // 修改 updateUserList 函数，移除重连按钮逻辑
 export function updateUserList(users) {
   const userList = document.getElementById('userList');
-  const sidebarTitle = document.getElementById('sidebarTitle');
-  if (!userList || !sidebarTitle) return;
+  if (!userList) return;
   
+  // 清空现有列表
   userList.innerHTML = '';
-  users.forEach(user => {
-    if (user.id === socket.id) return; // 跳过自己
-    
+  
+  // 过滤掉无效用户和自己
+  const validUsers = users.filter(user => user.id !== socket.id);
+  
+  // 如果没有其他用户
+  if (validUsers.length === 0) {
     const li = document.createElement('li');
-    const userSpan = document.createElement('span');
-    userSpan.textContent = user.userId;
-    li.appendChild(userSpan);
+    li.className = 'no-users';
+    li.textContent = '暂无其他用户';
+    userList.appendChild(li);
+    return;
+  }
+  
+  // 添加每个用户到列表
+  validUsers.forEach(user => {
+    const li = document.createElement('li');
     
     // 获取连接状态
     const connection = peerConnections.get(user.id);
-    const connectionInfo = connectionAttempts.get(user.id) || { attempts: 0, state: ConnectionState.DISCONNECTED };
-    let connectionState = connectionInfo.state;
+    const connectionInfo = connectionAttempts.get(user.id) || { attempts: 0 };
+    let connectionState = ConnectionState.DISCONNECTED;
     
-    // 更新连接状态逻辑
+    // 更新连接状态
     if (connection) {
-      if (connection.dataChannel && connection.dataChannel.readyState === 'open' && 
+      if (connection.dataChannel?.readyState === 'open' && 
           connection.pc.connectionState === 'connected') {
         connectionState = ConnectionState.CONNECTED;
       } else if (connection.pc.connectionState === 'connecting' || 
                  connection.pc.connectionState === 'new' ||
-                 (connection.dataChannel && connection.dataChannel.readyState === 'connecting')) {
+                 connection.dataChannel?.readyState === 'connecting') {
         connectionState = ConnectionState.CONNECTING;
-      } else {
-        connectionState = ConnectionState.CONNECTING; // 将失败状态也显示为连接中
+      } else if (connection.pc.connectionState === 'failed' || 
+                 connection.pc.connectionState === 'disconnected' || 
+                 connection.pc.connectionState === 'closed') {
+        connectionState = connectionInfo.attempts >= 3 ? 
+                         ConnectionState.FAILED : 
+                         ConnectionState.DISCONNECTED;
       }
     }
     
-    // 添加状态标识
-    const statusSpan = document.createElement('span');
-    statusSpan.className = 'connection-status';
-    switch (connectionState) {
-      case ConnectionState.CONNECTED:
-        statusSpan.textContent = ' (已连接)';
-        break;
-      case ConnectionState.CONNECTING:
-        statusSpan.textContent = ' (连接中...)';
-        break;
-      case ConnectionState.DISCONNECTED:
-        statusSpan.textContent = ' (重新连接中...)';
-        break;
-    }
-    li.appendChild(statusSpan);
-    
-    // 添加状态类
+    // 设置状态样式
     li.classList.add(connectionState.toLowerCase());
     
+    // 创建用户名称元素
+    const userSpan = document.createElement('span');
+    userSpan.className = 'user-name';
+    userSpan.textContent = user.userId;
+    
+    // 添加状态文本
+    const statusText = document.createElement('span');
+    statusText.className = 'connection-status';
+    switch (connectionState) {
+      case ConnectionState.CONNECTED:
+        statusText.textContent = '已连接';
+        break;
+      case ConnectionState.CONNECTING:
+        statusText.textContent = '连接中...';
+        break;
+      case ConnectionState.DISCONNECTED:
+        statusText.textContent = '未连接';
+        break;
+      case ConnectionState.FAILED:
+        statusText.textContent = '连接失败';
+        break;
+    }
+    
+    // 组装元素
+    li.appendChild(userSpan);
+    li.appendChild(statusText);
     userList.appendChild(li);
   });
-  
-  sidebarTitle.textContent = `在线用户 (${users.length - 1})`; // 减去自己
 }
 
 function hasActiveConnections() {

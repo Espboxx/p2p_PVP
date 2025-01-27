@@ -14,23 +14,29 @@ document.addEventListener('DOMContentLoaded', () => {
   const messageInput = document.getElementById('messageInput');
 
   // 显示模态框
-  joinRoomBtn.addEventListener('click', () => {
-    modal.style.display = 'block';
+  document.getElementById('joinRoomBtn').addEventListener('click', (e) => {
+    e.stopPropagation(); // 阻止事件冒泡
+    modal.classList.add('active');
     roomInput.value = '';
     roomInput.focus();
   });
 
   // 隐藏模态框
   cancelJoinBtn.addEventListener('click', () => {
-    modal.style.display = 'none';
+    modal.classList.remove('active');
   });
 
   // 确认加入房间
-  confirmJoinBtn.addEventListener('click', () => {
+  confirmJoinBtn.addEventListener('click', async () => {
     const roomId = roomInput.value.trim();
     if (roomId) {
-      joinRoom(roomId);
-      modal.style.display = 'none';
+      confirmJoinBtn.classList.add('loading');
+      try {
+        await joinRoom(roomId);
+        modal.classList.remove('active');
+      } finally {
+        confirmJoinBtn.classList.remove('loading');
+      }
     }
   });
 
@@ -43,8 +49,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 点击模态框外部关闭
   modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-      modal.style.display = 'none';
+    // 检查点击的是否是模态框背景（排除子元素）
+    if (e.target === modal && !modal.contains(e.target.closest('.modal'))) {
+      modal.classList.remove('active');
     }
   });
 
@@ -74,7 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault(); // 阻止默认的换行行为
         const sendBtn = document.getElementById('sendBtn');
         if (!sendBtn.disabled) {
-          sendBtn.click();
+          sendMessage();  // 直接调用 sendMessage 而不是触发按钮点击
         }
       }
     }

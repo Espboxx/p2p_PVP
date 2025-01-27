@@ -19,7 +19,7 @@
           <div id="userList"></div>
           <div class="sidebar-footer">
             <button id="joinRoomBtn" class="join-room-btn">
-              <svg width="18" height="18" viewBox="0 0 24 24">
+              <svg width="24" height="24" viewBox="0 0 24 24">
                 <path fill="currentColor" d="M20 11.1111H12.8889V4H11.1111V11.1111H4V12.8889H11.1111V20H12.8889V12.8889H20V11.1111Z"/>
               </svg>
               加入房间
@@ -27,7 +27,11 @@
           </div>
         </div>
         <div class="toggle-container">
-          <button class="sidebar-toggle" id="sidebarToggle">⟨</button>
+          <button class="sidebar-toggle" id="sidebarToggle">
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -40,7 +44,7 @@
           </button>
           <div class="room-info">
             <svg width="24" height="24" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M14 8C14 5.79086 12.2091 4 10 4C7.79086 4 6 5.79086 6 8C6 10.2091 7.79086 12 10 12C12.2091 12 14 10.2091 14 8ZM4 8C4 4.68629 6.68629 2 10 2C13.3137 2 16 4.68629 16 8C16 11.3137 13.3137 14 10 14C6.68629 14 4 11.3137 4 8Z M20 19C20 19.5523 19.5523 20 19 20H1C0.447715 20 0 19.5523 0 19V18C0 14.6863 2.68629 12 6 12H14C17.3137 12 20 14.6863 20 18V19Z"/>
+              <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
             </svg>
             <span id="roomDisplay"></span>
           </div>
@@ -50,12 +54,16 @@
           <div class="input-area">
             <label class="file-upload-btn" for="fileInput" title="发送文件">
               <svg width="24" height="24" viewBox="0 0 24 24">
-                <path fill="currentColor" d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/>
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 15V5"></path>
               </svg>
             </label>
             <input type="file" id="fileInput" hidden>
-            <textarea id="messageInput" placeholder="输入消息..." rows="1"></textarea>
-            <button id="sendBtn" title="发送消息"></button>
+            <textarea id="messageInput" placeholder="发送消息..." rows="1"></textarea>
+            <button id="sendBtn" title="发送消息">
+              <svg width="20" height="20" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
@@ -76,7 +84,12 @@
 
   <!-- 添加拖拽覆盖层 -->
   <div class="drag-overlay" id="dragOverlay">
-    <div class="drag-message">释放文件以发送</div>
+    <div class="drag-message">
+      <svg width="24" height="24" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+      </svg>
+      释放文件以发送
+    </div>
   </div>
 </body>
 </html>
