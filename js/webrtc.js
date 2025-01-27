@@ -450,49 +450,6 @@ async function handleRemoteDescriptionSet(connection) {
     }
 }
 
-// 修改 reconnectAllPeers 函数，添加未知用户检查
-async function reconnectAllPeers() {
-    const disconnectedPeers = [];
-    
-    // 只检查在线且有效的用户的连接状态
-    onlineUsers.forEach((userId, peerId) => {
-        // 跳过自己和未知用户
-        if (peerId === socket.id || !userId) return;
-        
-        const connection = peerConnections.get(peerId);
-        if (!connection) {
-            // 在线用户但没有连接
-            disconnectedPeers.push(peerId);
-        } else if (connection.pc.connectionState === 'failed' || 
-                   connection.pc.connectionState === 'disconnected' || 
-                   connection.pc.connectionState === 'closed') {
-            // 在线用户但连接已断开
-            disconnectedPeers.push(peerId);
-        }
-    });
-
-    if (disconnectedPeers.length > 0) {
-        displayMessage('系统: 正在尝试重新建立连接...', 'system');
-        
-        // 并行处理所有重连
-        await Promise.allSettled(
-            disconnectedPeers.map(async (peerId) => {
-                // 再次检查用户是否有效
-                const userId = onlineUsers.get(peerId);
-                if (!userId) {
-                    console.log(`跳过未知用户 ${peerId} 的重连`);
-                    return;
-                }
-                
-                try {
-                    await reconnect(peerId);
-                } catch (err) {
-                    console.error(`重连 ${peerId} 失败:`, err);
-                }
-            })
-        );
-    }
-}
 
 // 添加重置连接尝试次数的函数
 export function resetConnectionAttempts(targetId) {
@@ -511,23 +468,7 @@ function getCandidateType(candidate) {
     return 'UNKNOWN';
 }
 
-// 分析连接状态
-function analyzeConnection(targetId) {
-    const info = candidateInfo.get(targetId);
-    if (!info) return;
-    
-    const candidates = info.candidates;
-    const types = new Set(candidates.map(c => c.type));
-    
-    console.log(`连接分析 (${targetId}):`, {
-        可用类型: Array.from(types),
-        候选项数量: candidates.length,
-        已选择对: info.selectedPair,
-        连接耗时: info.selectedPair ? 
-            (info.selectedPair.timestamp - info.connectionStartTime) : 
-            'N/A'
-    });
-}
+
 
 // 分析连接失败原因
 function analyzeConnectionFailure(targetId) {
