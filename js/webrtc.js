@@ -1,4 +1,4 @@
-import { rtcConfig } from './config.js';
+import { rtcConfig, iceConfig, CONNECTION_TIMEOUT, ICE_GATHERING_TIMEOUT } from './config.js';
 import { socket, onlineUsers } from './socket.js';
 import { setupDataChannel } from './dataChannel.js';
 import { displayMessage, updateUIState, updateUserList } from './ui.js';
@@ -9,6 +9,10 @@ const CONNECTION_TIMEOUT = 20000; // 20秒超时
 let connectionTimeouts = new Map(); // 存储连接超时计时器
 let reconnectAttempts = new Map(); // 记录重连次数
 const connectionAttempts = new Map(); // 存储连接尝试次数
+
+// 添加连接状态监控
+let iceGatheringTimeouts = new Map();
+let candidateTypes = new Map(); // 记录收集到的候选项类型
 
 export async function createPeerConnection(targetId) {
     const userId = onlineUsers.get(targetId);
@@ -38,6 +42,13 @@ export async function createPeerConnection(targetId) {
         
         connectionTimeouts.set(targetId, timeoutId);
         
+        // 设置 ICE 收集超时
+        const iceTimeoutId = setTimeout(() => {
+            handleIceGatheringTimeout(targetId);
+        }, ICE_GATHERING_TIMEOUT);
+        
+        iceGatheringTimeouts.set(targetId, iceTimeoutId);
+        
         const dataChannel = pc.createDataChannel('chatChannel');
         setupDataChannel(dataChannel, targetId);
         connection.dataChannel = dataChannel;
@@ -56,15 +67,29 @@ export async function createPeerConnection(targetId) {
             }
         };
         
+        // 监控 ICE 候选项类型
         pc.onicecandidate = ({ candidate }) => {
             if (candidate) {
+                const candidateInfo = {
+                    type: getCandidateType(candidate),
+                    protocol: candidate.protocol,
+                    timestamp: Date.now()
+                };
+                
+                if (!candidateTypes.has(targetId)) {
+                    candidateTypes.set(targetId, []);
+                }
+                candidateTypes.get(targetId).push(candidateInfo);
+                
                 socket.emit('signal', { 
                     to: targetId, 
                     signal: { type: 'candidate', candidate } 
                 });
-                console.log(`发送 ICE candidate 到 ${targetId}`);
+                console.log(`发送 ICE candidate (${candidateInfo.type}) 到 ${targetId}`);
             } else {
                 console.log('ICE gathering complete');
+                clearTimeout(iceGatheringTimeouts.get(targetId));
+                analyzeConnection(targetId);
             }
         };
         pc.onnegotiationneeded = async () => {
@@ -146,6 +171,11 @@ export async function createPeerConnection(targetId) {
                 clearConnectionTimeout(targetId);
                 const peerName = onlineUsers.get(targetId) || '未知用户';
                 displayMessage(`系统: 与 ${peerName} 的连接已建立`, 'system');
+            }
+
+            if (pc.connectionState === 'failed') {
+                // 分析连接失败原因
+                analyzeConnectionFailure(targetId);
             }
         };
       
@@ -472,6 +502,81 @@ async function reconnectAllPeers() {
 // 添加重置连接尝试次数的函数
 export function resetConnectionAttempts(targetId) {
     connectionAttempts.delete(targetId);
+}
+
+// 分析候选项类型
+function getCandidateType(candidate) {
+    if (candidate.type === 'relay') {
+        return 'TURN';
+    } else if (candidate.type === 'srflx') {
+        return 'STUN';
+    } else if (candidate.type === 'host') {
+        return 'HOST';
+    }
+    return 'UNKNOWN';
+}
+
+// 分析连接状态
+function analyzeConnection(targetId) {
+    const candidates = candidateTypes.get(targetId) || [];
+    const hasTURN = candidates.some(c => c.type === 'TURN');
+    const hasSTUN = candidates.some(c => c.type === 'STUN');
+    const hasHost = candidates.some(c => c.type === 'HOST');
+    
+    console.log(`连接分析 (${targetId}):`, {
+        TURN: hasTURN,
+        STUN: hasSTUN,
+        HOST: hasHost,
+        总候选项数: candidates.length
+    });
+    
+    // 如果没有收集到 TURN 候选项，可能需要切换到备用服务器
+    if (!hasTURN && !hasSTUN) {
+        console.warn(`没有收集到 TURN/STUN 候选项，可能需要使用备用服务器`);
+    }
+}
+
+// 分析连接失败原因
+function analyzeConnectionFailure(targetId) {
+    const candidates = candidateTypes.get(targetId) || [];
+    const connection = peerConnections.get(targetId);
+    
+    if (!connection) return;
+    
+    const { pc } = connection;
+    console.log(`连接失败分析 (${targetId}):`, {
+        ICE状态: pc.iceConnectionState,
+        信令状态: pc.signalingState,
+        候选项类型: candidates.map(c => c.type),
+        连接状态: pc.connectionState
+    });
+    
+    // 如果只有 HOST 候选项，可能是防火墙问题
+    if (candidates.every(c => c.type === 'HOST')) {
+        console.warn('只收集到本地候选项，可能是防火墙限制');
+        displayMessage('系统: 网络连接受限，尝试使用备用服务器...', 'system');
+    }
+    
+    // 如果没有任何候选项，可能是 STUN/TURN 服务器无法访问
+    if (candidates.length === 0) {
+        console.warn('没有收集到任何候选项，STUN/TURN 服务器可能无法访问');
+        displayMessage('系统: 无法访问中继服务器，请检查网络设置', 'system');
+    }
+}
+
+// 处理 ICE 收集超时
+function handleIceGatheringTimeout(targetId) {
+    console.warn(`ICE candidate 收集超时 (${targetId})`);
+    const connection = peerConnections.get(targetId);
+    
+    if (connection) {
+        const candidates = candidateTypes.get(targetId) || [];
+        if (candidates.length === 0) {
+            // 如果完全没有收集到候选项，可能需要切换到备用服务器
+            console.log('尝试使用备用服务器重新建立连接...');
+            handleConnectionFailure(targetId);
+        }
+    }
 }
 
 // ... 其他 WebRTC 相关函数 ... 

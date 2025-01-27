@@ -1,22 +1,51 @@
-// WebRTC配置
+// WebRTC 配置
 export const rtcConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' }
-  ]
+    iceServers: [
+        // STUN servers
+        {
+            urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+                'stun:stun3.l.google.com:19302',
+                'stun:stun4.l.google.com:19302'
+            ]
+        },
+        // TURN servers
+        {
+            urls: 'turn:107.175.213.234:3478',
+            username: 'ddddd',
+
+            credential: 'wdnmd12345'
+        }
+    ],
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: 'all', // 允许所有传输策略
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
 };
 
-// 文件传输配置
-export const fileChunkSize = 16 * 1024; // 16KB分块
+// ICE 配置
+export const iceConfig = {
+    iceServers: rtcConfig.iceServers,
+    iceTransportPolicy: 'all',
+    iceCandidatePoolSize: 10
+};
 
-// 传输状态常量
+// 连接超时设置
+export const CONNECTION_TIMEOUT = 20000; // 20 秒
+export const ICE_GATHERING_TIMEOUT = 5000; // 5 秒
+export const RECONNECT_DELAY = 2000; // 2 秒
+export const MAX_RECONNECT_ATTEMPTS = 3;
+
+// 文件传输配置
+export const fileChunkSize = 16384; // 16KB
+
+// 传输状态枚举
 export const TransferState = {
-  WAITING: 'waiting',    // 等待接收方确认
-  TRANSFERRING: 'transferring', // 正在传输
-  PAUSED: 'paused',     // 传输暂停（断开时）
-  COMPLETED: 'completed', // 传输完成
-  FAILED: 'failed'      // 传输失败
+    WAITING: 'waiting',
+    TRANSFERRING: 'transferring',
+    COMPLETED: 'completed',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled'
 }; 
