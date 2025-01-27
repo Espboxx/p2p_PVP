@@ -426,11 +426,12 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* 用户列表样式 */
+/* 用户列表样式优化 */
 #userList {
   list-style: none;
   padding: 0;
   margin: 0;
+  transition: opacity 0.2s ease;
 }
 
 #userList li {
@@ -439,38 +440,41 @@ body {
   gap: 8px;
   padding: 8px 16px;
   color: var(--text-color);
-  transition: background-color 0.2s;
-  cursor: pointer;
+  transition: all 0.2s ease;
+  cursor: default;
   position: relative;
 }
 
-#userList li::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  margin-right: 8px;
+#userList li:hover {
+  background: var(--hover-bg);
 }
 
 /* 状态指示器样式 */
-#userList li.connected::before {
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 连接状态样式 */
+li.connected .status-indicator {
   background-color: var(--success-color);
   box-shadow: 0 0 4px var(--success-color);
 }
 
-#userList li.connecting::before {
+li.connecting .status-indicator {
   background-color: var(--warning-color);
   box-shadow: 0 0 4px var(--warning-color);
   animation: pulse 1.5s infinite;
 }
 
-#userList li.disconnected::before {
+li.disconnected .status-indicator {
   background-color: var(--text-muted);
   box-shadow: 0 0 4px var(--text-muted);
 }
 
-#userList li.failed::before {
+li.failed .status-indicator {
   background-color: var(--danger-color);
   box-shadow: 0 0 4px var(--danger-color);
 }
@@ -479,12 +483,27 @@ body {
 .user-name {
   flex: 1;
   font-weight: 500;
+  color: var(--text-color);
 }
 
 /* 连接状态文本样式 */
 .connection-status {
   font-size: 0.8125rem;
   color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+li.connected .connection-status {
+  color: var(--success-color);
+}
+
+li.connecting .connection-status {
+  color: var(--warning-color);
+  animation: pulse 1.5s infinite;
+}
+
+li.failed .connection-status {
+  color: var(--danger-color);
 }
 
 /* 状态指示器动画 */
@@ -503,54 +522,12 @@ body {
   }
 }
 
-/* 侧边栏样式 */
-.sidebar {
-  width: 240px;
-  background: var(--secondary-bg);
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: fixed;
-  left: 0;
-  top: 0;
-  z-index: 100;
-  transition: transform 0.3s ease;
-}
-
-.sidebar h3 {
-  padding: 16px;
-  margin: 0;
-  color: var(--text-color);
-  font-size: 1rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
-}
-
-/* 连接状态颜色 */
-li.connected .connection-status {
-  color: var(--success-color);
-}
-
-li.connecting .connection-status {
-  color: var(--warning-color);
-  animation: pulse 1.5s infinite;
-}
-
-li.failed .connection-status {
-  color: var(--danger-color);
-}
-
 /* 无用户时的样式 */
 .no-users {
   color: var(--text-muted);
   font-style: italic;
   text-align: center;
+  padding: 16px;
 }
 
 /* 文件区域样式 */

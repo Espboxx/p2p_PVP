@@ -602,6 +602,10 @@ export function updateUserList(users) {
     userSpan.className = 'user-name';
     userSpan.textContent = user.userId;
     
+    // 添加状态指示器
+    const statusIndicator = document.createElement('span');
+    statusIndicator.className = 'status-indicator';
+    
     // 添加状态文本
     const statusText = document.createElement('span');
     statusText.className = 'connection-status';
@@ -621,10 +625,16 @@ export function updateUserList(users) {
     }
     
     // 组装元素
+    li.appendChild(statusIndicator);
     li.appendChild(userSpan);
     li.appendChild(statusText);
     userList.appendChild(li);
   });
+  
+  // 触发重新渲染
+  userList.style.display = 'none';
+  userList.offsetHeight; // 强制重排
+  userList.style.display = '';
 }
 
 function hasActiveConnections() {

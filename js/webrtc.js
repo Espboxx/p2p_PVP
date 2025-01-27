@@ -127,6 +127,11 @@ export async function createPeerConnection(targetId) {
                     updateUserList,
                     displayMessage
                 });
+                
+                // 立即触发 UI 更新
+                requestAnimationFrame(() => {
+                    updateUIState();
+                });
             }
 
             // 广播状态变化
@@ -141,7 +146,6 @@ export async function createPeerConnection(targetId) {
                 clearConnectionTimeout(targetId);
                 const peerName = onlineUsers.get(targetId) || '未知用户';
                 displayMessage(`系统: 与 ${peerName} 的连接已建立`, 'system');
-                updateUIState();
             }
         };
       
@@ -169,6 +173,10 @@ export async function createPeerConnection(targetId) {
                     updateUserList,
                     displayMessage
                 });
+                // 立即触发 UI 更新
+                requestAnimationFrame(() => {
+                    updateUIState();
+                });
             }
         };
 
@@ -180,6 +188,10 @@ export async function createPeerConnection(targetId) {
                 if (attempts < 3) {
                     console.log(`数据通道关闭，尝试重新建立...`);
                     handleConnectionFailure(targetId);
+                    // 立即触发 UI 更新
+                    requestAnimationFrame(() => {
+                        updateUIState();
+                    });
                 }
             }
         };
