@@ -241,23 +241,36 @@ function handleConnectionFailure(targetId) {
             updateUserList,
             displayMessage
         });
-    } else {
-        // 获取当前重试次数并增加
-        const attempts = connectionAttempts.get(targetId)?.attempts || 0;
-        connectionAttempts.set(targetId, { attempts: attempts + 1 });
-        console.log(`准备第 ${attempts + 1} 次重连...`);
-        
-        // 使用递增延迟，但设置最大延迟为10秒
-        const delay = Math.min(1000 * (attempts + 1), 10000);
-        
-        setTimeout(async () => {
-            try {
-                await autoReconnect(targetId);
-            } catch (err) {
-                console.error('自动重连失败:', err);
-            }
-        }, delay);
+        return;
     }
+    
+    // 检查现有连接状态
+    const existingConnection = peerConnections.get(targetId);
+    if (existingConnection) {
+        const { pc, dataChannel } = existingConnection;
+        if (pc.connectionState === 'connected' || 
+            pc.connectionState === 'connecting' || 
+            dataChannel?.readyState === 'open') {
+            console.log('已存在活跃连接，不进行重连');
+            return;
+        }
+    }
+    
+    // 获取当前重试次数并增加
+    const attempts = connectionAttempts.get(targetId)?.attempts || 0;
+    connectionAttempts.set(targetId, { attempts: attempts + 1 });
+    console.log(`准备第 ${attempts + 1} 次重连...`);
+    
+    // 使用递增延迟，但设置最大延迟为10秒
+    const delay = Math.min(1000 * (attempts + 1), 10000);
+    
+    setTimeout(async () => {
+        try {
+            await autoReconnect(targetId);
+        } catch (err) {
+            console.error('自动重连失败:', err);
+        }
+    }, delay);
 }
 
 async function autoReconnect(targetId) {
@@ -553,9 +566,20 @@ function handleIceGatheringTimeout(targetId) {
     const connection = peerConnections.get(targetId);
     
     if (connection) {
+        // 检查当前连接状态
+        const { pc, dataChannel } = connection;
+        
+        // 如果连接已经建立或正在使用中，不要断开
+        if (pc.connectionState === 'connected' || 
+            pc.connectionState === 'connecting' || 
+            dataChannel?.readyState === 'open') {
+            console.log('已存在活跃连接，忽略 ICE 收集超时');
+            return;
+        }
+        
         const candidates = candidateTypes.get(targetId) || [];
         if (candidates.length === 0) {
-            // 如果完全没有收集到候选项，可能需要切换到备用服务器
+            // 只有在完全没有收集到候选项，且没有活跃连接时才尝试重连
             console.log('尝试使用备用服务器重新建立连接...');
             handleConnectionFailure(targetId);
         }
