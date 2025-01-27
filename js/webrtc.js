@@ -1,4 +1,4 @@
-import { rtcConfig, iceConfig, CONNECTION_TIMEOUT, ICE_GATHERING_TIMEOUT } from './config.js';
+import { rtcConfig, iceConfig, CONNECTION_TIMEOUT, ICE_GATHERING_TIMEOUT, ConnectionPriority } from './config.js';
 import { socket, onlineUsers } from './socket.js';
 import { setupDataChannel } from './dataChannel.js';
 import { displayMessage, updateUIState, updateUserList } from './ui.js';
@@ -12,6 +12,9 @@ const connectionAttempts = new Map(); // 存储连接尝试次数
 // 添加连接状态监控
 let iceGatheringTimeouts = new Map();
 let candidateTypes = new Map(); // 记录收集到的候选项类型
+
+// 存储每个连接的候选项信息
+const candidateInfo = new Map();
 
 export async function createPeerConnection(targetId) {
     const userId = onlineUsers.get(targetId);
@@ -68,28 +71,7 @@ export async function createPeerConnection(targetId) {
         
         // 监控 ICE 候选项类型
         pc.onicecandidate = ({ candidate }) => {
-            if (candidate) {
-                const candidateInfo = {
-                    type: getCandidateType(candidate),
-                    protocol: candidate.protocol,
-                    timestamp: Date.now()
-                };
-                
-                if (!candidateTypes.has(targetId)) {
-                    candidateTypes.set(targetId, []);
-                }
-                candidateTypes.get(targetId).push(candidateInfo);
-                
-                socket.emit('signal', { 
-                    to: targetId, 
-                    signal: { type: 'candidate', candidate } 
-                });
-                console.log(`发送 ICE candidate (${candidateInfo.type}) 到 ${targetId}`);
-            } else {
-                console.log('ICE gathering complete');
-                clearTimeout(iceGatheringTimeouts.get(targetId));
-                analyzeConnection(targetId);
-            }
+            handleIceCandidate(pc, targetId, candidate);
         };
         pc.onnegotiationneeded = async () => {
             try {
@@ -109,6 +91,7 @@ export async function createPeerConnection(targetId) {
         };
       
         pc.onconnectionstatechange = () => {
+            handleConnectionStateChange(pc, targetId, dataChannel);
             console.log(`Connection state changed to: ${pc.connectionState} for peer ${targetId}`);
             
             // 添加更详细的状态日志
@@ -517,27 +500,28 @@ function getCandidateType(candidate) {
 
 // 分析连接状态
 function analyzeConnection(targetId) {
-    const candidates = candidateTypes.get(targetId) || [];
-    const hasTURN = candidates.some(c => c.type === 'TURN');
-    const hasSTUN = candidates.some(c => c.type === 'STUN');
-    const hasHost = candidates.some(c => c.type === 'HOST');
+    const info = candidateInfo.get(targetId);
+    if (!info) return;
+    
+    const candidates = info.candidates;
+    const types = new Set(candidates.map(c => c.type));
     
     console.log(`连接分析 (${targetId}):`, {
-        TURN: hasTURN,
-        STUN: hasSTUN,
-        HOST: hasHost,
-        总候选项数: candidates.length
+        可用类型: Array.from(types),
+        候选项数量: candidates.length,
+        已选择对: info.selectedPair,
+        连接耗时: info.selectedPair ? 
+            (info.selectedPair.timestamp - info.connectionStartTime) : 
+            'N/A'
     });
-    
-    // 如果没有收集到 TURN 候选项，可能需要切换到备用服务器
-    if (!hasTURN && !hasSTUN) {
-        console.warn(`没有收集到 TURN/STUN 候选项，可能需要使用备用服务器`);
-    }
 }
 
 // 分析连接失败原因
 function analyzeConnectionFailure(targetId) {
-    const candidates = candidateTypes.get(targetId) || [];
+    const info = candidateInfo.get(targetId);
+    if (!info) return;
+    
+    const candidates = info.candidates;
     const connection = peerConnections.get(targetId);
     
     if (!connection) return;
@@ -575,6 +559,70 @@ function handleIceGatheringTimeout(targetId) {
             console.log('尝试使用备用服务器重新建立连接...');
             handleConnectionFailure(targetId);
         }
+    }
+}
+
+// 修改 ICE 候选项处理逻辑
+function handleIceCandidate(pc, targetId, candidate) {
+    if (!candidate) {
+        console.log('ICE candidate gathering complete');
+        return;
+    }
+
+    const type = getCandidateType(candidate);
+    const timestamp = Date.now();
+    
+    if (!candidateInfo.has(targetId)) {
+        candidateInfo.set(targetId, {
+            candidates: [],
+            selectedPair: null,
+            connectionStartTime: timestamp
+        });
+    }
+    
+    const info = candidateInfo.get(targetId);
+    info.candidates.push({
+        type,
+        timestamp,
+        priority: ConnectionPriority[type] || 0,
+        candidate
+    });
+
+    // 发送候选项到对等端
+    socket.emit('signal', {
+        to: targetId,
+        signal: { type: 'candidate', candidate }
+    });
+    
+    console.log(`发送 ${type} candidate 到 ${targetId}`);
+}
+
+// 修改连接状态变化处理
+function handleConnectionStateChange(pc, targetId, dataChannel) {
+    const info = candidateInfo.get(targetId);
+    if (!info) return;
+
+    if (pc.connectionState === 'connected') {
+        // 获取选中的候选项对
+        const selectedPair = pc.sctp?.transport?.iceTransport?.getSelectedCandidatePair();
+        if (selectedPair) {
+            info.selectedPair = {
+                local: getCandidateType(selectedPair.local),
+                remote: getCandidateType(selectedPair.remote),
+                timestamp: Date.now()
+            };
+            
+            const connectionTime = info.selectedPair.timestamp - info.connectionStartTime;
+            console.log(`连接成功使用 ${info.selectedPair.local} -> ${info.selectedPair.remote} (耗时: ${connectionTime}ms)`);
+            
+            // 更新UI显示连接类型
+            const peerName = onlineUsers.get(targetId) || '未知用户';
+            const connType = info.selectedPair.local;
+            displayMessage(`系统: 与 ${peerName} 的连接已建立 (${connType})`, 'system');
+        }
+        
+        // 清理其他正在进行的连接尝试
+        clearConnectionTimeout(targetId);
     }
 }
 
