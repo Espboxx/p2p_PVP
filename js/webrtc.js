@@ -5,7 +5,6 @@ import { displayMessage, updateUIState, updateUserList } from './ui.js';
 import { ConnectionState, updateConnectionState } from './connectionState.js';
 
 export const peerConnections = new Map(); // key: socketId, value: { pc: RTCPeerConnection, dataChannel: RTCDataChannel }
-const CONNECTION_TIMEOUT = 20000; // 20秒超时
 let connectionTimeouts = new Map(); // 存储连接超时计时器
 let reconnectAttempts = new Map(); // 记录重连次数
 const connectionAttempts = new Map(); // 存储连接尝试次数
