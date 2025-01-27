@@ -1,7 +1,7 @@
 import { socket, joinRoom } from './socket.js';
 import { sendMessage } from './dataChannel.js';
 import { sendFile } from './fileTransfer.js';
-import { updateUIState } from './ui.js';
+import { updateUIState, setupUserIdEdit } from './ui.js';
 
 // 初始化事件监听
 document.addEventListener('DOMContentLoaded', () => {
@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const roomInput = document.getElementById('roomId');
   const fileInput = document.getElementById('fileInput');
   const messageInput = document.getElementById('messageInput');
+
+  // 初始化用户ID编辑功能
+  setupUserIdEdit();
 
   // 显示模态框
   document.getElementById('joinRoomBtn').addEventListener('click', (e) => {

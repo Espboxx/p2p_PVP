@@ -1425,4 +1425,112 @@ html {
   .mobile-users-toggle {
     display: block;
   }
+}
+
+.user-id-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    margin-left: auto;
+}
+
+.user-id-text {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.edit-user-id-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #fff;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-user-id-btn:hover {
+    opacity: 1;
+}
+
+.edit-user-id-btn svg {
+    width: 16px;
+    height: 16px;
+}
+
+/* 适配移动端 */
+@media (max-width: 768px) {
+    .user-id-display {
+        padding: 2px 6px;
+    }
+    
+    .user-id-text {
+        font-size: 12px;
+    }
+    
+    .edit-user-id-btn svg {
+        width: 14px;
+        height: 14px;
+    }
+}
+
+.self-user {
+    background: var(--tertiary-bg) !important;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 8px !important;
+    padding: 12px 16px !important;
+}
+
+.self-user .user-name {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.self-user .status-indicator {
+    background-color: var(--success-color) !important;
+    box-shadow: 0 0 4px var(--success-color);
+}
+
+.edit-user-btn {
+    background: none;
+    border: none;
+    padding: 4px;
+    margin-right: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.edit-user-btn:hover {
+    opacity: 1;
+    color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+.edit-user-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+    .self-user {
+        padding: 10px 12px !important;
+    }
+    
+    .edit-user-btn svg {
+        width: 12px;
+        height: 12px;
+    }
 } 

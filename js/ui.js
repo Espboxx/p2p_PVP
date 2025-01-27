@@ -273,6 +273,12 @@ export function updateUIState() {
       dataChannelState: connection?.dataChannel?.readyState || 'closed'
     };
   }));
+
+  // 更新用户ID显示
+  const userIdText = document.getElementById('userIdText');
+  if (userIdText && socket.id) {
+    userIdText.textContent = onlineUsers.get(socket.id) || socket.id;
+  }
 }
 
 // 修改系统消息过滤函数
@@ -547,94 +553,143 @@ export function updateProgressBar(fileId, progress, type = 'download', speed = 0
   }
 }
 
-// 修改 updateUserList 函数，移除重连按钮逻辑
+// 修改 updateUserList 函数
 export function updateUserList(users) {
-  const userList = document.getElementById('userList');
-  if (!userList) return;
-  
-  // 清空现有列表
-  userList.innerHTML = '';
-  
-  // 过滤掉无效用户和自己
-  const validUsers = users.filter(user => user.id !== socket.id);
-  
-  // 如果没有其他用户
-  if (validUsers.length === 0) {
-    const li = document.createElement('li');
-    li.className = 'no-users';
-    li.textContent = '暂无其他用户';
-    userList.appendChild(li);
-    return;
-  }
-  
-  // 添加每个用户到列表
-  validUsers.forEach(user => {
-    const li = document.createElement('li');
+    const userList = document.getElementById('userList');
+    if (!userList) return;
     
-    // 获取连接状态
-    const connection = peerConnections.get(user.id);
-    const connectionInfo = connectionAttempts.get(user.id) || { attempts: 0 };
-    let connectionState = ConnectionState.DISCONNECTED;
+    // 清空现有列表
+    userList.innerHTML = '';
     
-    // 更新连接状态
-    if (connection) {
-      if (connection.dataChannel?.readyState === 'open' && 
-          connection.pc.connectionState === 'connected') {
-        connectionState = ConnectionState.CONNECTED;
-      } else if (connection.pc.connectionState === 'connecting' || 
-                 connection.pc.connectionState === 'new' ||
-                 connection.dataChannel?.readyState === 'connecting') {
-        connectionState = ConnectionState.CONNECTING;
-      } else if (connection.pc.connectionState === 'failed' || 
-                 connection.pc.connectionState === 'disconnected' || 
-                 connection.pc.connectionState === 'closed') {
-        connectionState = connectionInfo.attempts >= 3 ? 
-                         ConnectionState.FAILED : 
-                         ConnectionState.DISCONNECTED;
-      }
+    // 分离当前用户和其他用户
+    const currentUser = users.find(user => user.id === socket.id);
+    const otherUsers = users.filter(user => user.id !== socket.id);
+    
+    // 如果当前用户存在，添加到列表顶部
+    if (currentUser) {
+        const li = document.createElement('li');
+        li.classList.add('self-user');
+        
+        // 添加状态指示器
+        const statusIndicator = document.createElement('span');
+        statusIndicator.className = 'status-indicator';
+        
+        // 添加编辑按钮
+        const editButton = document.createElement('button');
+        editButton.className = 'edit-user-btn';
+        editButton.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+        `;
+        
+        // 添加用户名称
+        const userSpan = document.createElement('span');
+        userSpan.className = 'user-name';
+        userSpan.textContent = currentUser.userId + ' (我)';
+        
+        // 添加状态文本
+        const statusText = document.createElement('span');
+        statusText.className = 'connection-status';
+        statusText.textContent = '在线';
+        
+        // 组装元素
+        li.appendChild(statusIndicator);
+        li.appendChild(editButton);
+        li.appendChild(userSpan);
+        li.appendChild(statusText);
+        
+        // 添加编辑功能
+        editButton.addEventListener('click', () => {
+            const newId = prompt('请输入新的用户ID:', currentUser.userId);
+            if (newId && newId !== currentUser.userId) {
+                socket.emit('change-user-id', {
+                    newId: newId
+                });
+            }
+        });
+        
+        userList.appendChild(li);
     }
     
-    // 设置状态样式
-    li.classList.add(connectionState.toLowerCase());
-    
-    // 创建用户名称元素
-    const userSpan = document.createElement('span');
-    userSpan.className = 'user-name';
-    userSpan.textContent = user.userId;
-    
-    // 添加状态指示器
-    const statusIndicator = document.createElement('span');
-    statusIndicator.className = 'status-indicator';
-    
-    // 添加状态文本
-    const statusText = document.createElement('span');
-    statusText.className = 'connection-status';
-    switch (connectionState) {
-      case ConnectionState.CONNECTED:
-        statusText.textContent = '已连接';
-        break;
-      case ConnectionState.CONNECTING:
-        statusText.textContent = '连接中...';
-        break;
-      case ConnectionState.DISCONNECTED:
-        statusText.textContent = '未连接';
-        break;
-      case ConnectionState.FAILED:
-        statusText.textContent = '连接失败';
-        break;
+    // 如果没有其他用户且当前用户也不存在
+    if (otherUsers.length === 0 && !currentUser) {
+        const li = document.createElement('li');
+        li.className = 'no-users';
+        li.textContent = '暂无其他用户';
+        userList.appendChild(li);
+        return;
     }
     
-    // 组装元素
-    li.appendChild(statusIndicator);
-    li.appendChild(userSpan);
-    li.appendChild(statusText);
-    userList.appendChild(li);
-  });
-  
-  // 触发重新渲染
-  userList.style.display = 'none';
-  userList.offsetHeight; // 强制重排
-  userList.style.display = '';
+    // 添加其他用户到列表
+    otherUsers.forEach(user => {
+        const li = document.createElement('li');
+        
+        // 获取连接状态
+        const connection = peerConnections.get(user.id);
+        const connectionInfo = connectionAttempts.get(user.id) || { attempts: 0 };
+        let connectionState = ConnectionState.DISCONNECTED;
+        
+        // 更新连接状态
+        if (connection) {
+            if (connection.dataChannel?.readyState === 'open' && 
+                connection.pc.connectionState === 'connected') {
+                connectionState = ConnectionState.CONNECTED;
+            } else if (connection.pc.connectionState === 'connecting' || 
+                     connection.pc.connectionState === 'new' ||
+                     connection.dataChannel?.readyState === 'connecting') {
+                connectionState = ConnectionState.CONNECTING;
+            } else if (connection.pc.connectionState === 'failed' || 
+                     connection.pc.connectionState === 'disconnected' || 
+                     connection.pc.connectionState === 'closed') {
+                connectionState = connectionInfo.attempts >= 3 ? 
+                                 ConnectionState.FAILED : 
+                                 ConnectionState.DISCONNECTED;
+            }
+        }
+        
+        // 设置状态样式
+        li.classList.add(connectionState.toLowerCase());
+        
+        // 添加状态指示器
+        const statusIndicator = document.createElement('span');
+        statusIndicator.className = 'status-indicator';
+        
+        // 添加用户名称
+        const userSpan = document.createElement('span');
+        userSpan.className = 'user-name';
+        userSpan.textContent = user.userId;
+        
+        // 添加状态文本
+        const statusText = document.createElement('span');
+        statusText.className = 'connection-status';
+        switch (connectionState) {
+            case ConnectionState.CONNECTED:
+                statusText.textContent = '已连接';
+                break;
+            case ConnectionState.CONNECTING:
+                statusText.textContent = '连接中...';
+                break;
+            case ConnectionState.DISCONNECTED:
+                statusText.textContent = '未连接';
+                break;
+            case ConnectionState.FAILED:
+                statusText.textContent = '连接失败';
+                break;
+        }
+        
+        // 组装元素
+        li.appendChild(statusIndicator);
+        li.appendChild(userSpan);
+        li.appendChild(statusText);
+        userList.appendChild(li);
+    });
+    
+    // 触发重新渲染
+    userList.style.display = 'none';
+    userList.offsetHeight; // 强制重排
+    userList.style.display = '';
 }
 
 function hasActiveConnections() {
@@ -727,6 +782,61 @@ export function showFileReceivePrompt(fileInfo) {
       resolve(false);
     };
   });
+}
+
+// 添加用户ID编辑功能
+export function setupUserIdEdit() {
+    const userIdDisplay = document.createElement('div');
+    userIdDisplay.id = 'userIdDisplay';
+    userIdDisplay.className = 'user-id-display';
+    
+    const userIdText = document.createElement('span');
+    userIdText.id = 'userIdText';
+    userIdText.className = 'user-id-text';
+    
+    const editButton = document.createElement('button');
+    editButton.id = 'editUserIdBtn';
+    editButton.className = 'edit-user-id-btn';
+    editButton.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+        </svg>
+    `;
+    
+    userIdDisplay.appendChild(userIdText);
+    userIdDisplay.appendChild(editButton);
+    
+    // 添加到页面
+    const header = document.querySelector('.chat-header');
+    if (header) {
+        header.appendChild(userIdDisplay);
+    }
+    
+    // 编辑功能
+    editButton.addEventListener('click', () => {
+        const currentId = userIdText.textContent;
+        const newId = prompt('请输入新的用户ID:', currentId);
+        
+        if (newId && newId !== currentId) {
+            // 发送ID更改请求到服务器
+            socket.emit('change-user-id', {
+                newId: newId
+            });
+        }
+    });
+    
+    // 监听ID更改结果
+    socket.on('user-id-changed', ({ success, userId, error }) => {
+        if (success) {
+            userIdText.textContent = userId;
+            displayMessage(`系统: 你的用户ID已更改为 ${userId}`, 'system');
+        } else {
+            displayMessage(`系统: 更改用户ID失败 - ${error}`, 'system');
+        }
+    });
+    
+    return userIdDisplay;
 }
 
 // ... 其他 UI 相关函数 ... 
