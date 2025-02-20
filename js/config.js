@@ -1,14 +1,16 @@
 // WebRTC 配置
 export const rtcConfig = {
     iceServers: [
-        // STUN servers - 使用多个STUN服务器提高成功率
+        // STUN servers - 使用更稳定的STUN服务器
         {
             urls: [
+                'stun:stun.voipbuster.com:3478',
+                'stun:stun.voipstunt.com:3478',
+                'stun:stun.internetcalls.com:3478',
+                'stun:stun.voip.aebc.com:3478',
+                // 保留一些Google的STUN服务器作为备用
                 'stun:stun.l.google.com:19302',
-                'stun:stun1.l.google.com:19302',
-                'stun:stun2.l.google.com:19302',
-                'stun:stun3.l.google.com:19302',
-                'stun:stun4.l.google.com:19302'
+                'stun:stun1.l.google.com:19302'
             ]
         },
         // 添加更多公共STUN服务器
@@ -40,16 +42,16 @@ export const iceConfig = {
     iceCandidatePoolSize: 10,
     // 添加ICE性能优化选项
     gatherPolicy: 'all',
-    iceServersTimeout: 3000, // 3秒超时
+    iceServersTimeout: 5000, // 增加到5秒
     iceBackupPairs: true, // 启用备用ICE候选对
     // 添加TURN服务器故障转移支持
     turnServersBackup: true
 };
 
 // 连接超时设置
-export const CONNECTION_TIMEOUT = 30000; // 30 秒，增加以处理慢速网络
-export const ICE_GATHERING_TIMEOUT = 8000; // 8 秒，增加以收集更多候选项
-export const RECONNECT_DELAY = 3000; // 3 秒，增加以避免过于频繁的重连
+export const CONNECTION_TIMEOUT = 45000; // 增加到45秒
+export const ICE_GATHERING_TIMEOUT = 12000; // 增加到12秒
+export const RECONNECT_DELAY = 5000; // 增加到5秒
 export const MAX_RECONNECT_ATTEMPTS = 5; // 增加重连尝试次数
 
 // 连接优先级配置
@@ -86,8 +88,7 @@ export const TransferState = {
 // 数据通道配置
 export const DATA_CHANNEL_CONFIG = {
     ordered: true,
-    maxRetransmits: 3,
-    maxPacketLifeTime: 3000,
+    maxRetransmits: 5, // 增加重传次数
     // 优化数据通道性能
     protocol: 'sctp',
     negotiated: true,
@@ -97,9 +98,9 @@ export const DATA_CHANNEL_CONFIG = {
 
 // 连接状态检查配置
 export const HEALTH_CHECK_CONFIG = {
-    interval: 5000, // 每5秒检查一次
-    timeout: 2000, // 2秒超时
-    maxMissedChecks: 3 // 允许最多错过3次检查
+    interval: 3000, // 减少到3秒以更快检测问题
+    timeout: 2000,
+    maxMissedChecks: 3
 };
 
 // 媒体流配置

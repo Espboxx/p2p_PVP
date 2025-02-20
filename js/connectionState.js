@@ -18,7 +18,8 @@ export function updateConnectionState(peerId, state, { onlineUsers, updateUserLi
     return;
   }
   
-  console.log(`更新用户 ${onlineUsers.get(peerId)} 的连接状态:`, state);
+  const userInfo = onlineUsers.get(peerId);
+  console.log(`更新用户 ${userInfo?.userId || '未知用户'} 的连接状态:`, state);
   
   peerConnection.state = state;
   
@@ -29,11 +30,15 @@ export function updateConnectionState(peerId, state, { onlineUsers, updateUserLi
   connectionAttempts.set(peerId, peerConnection);
   
   // 更新用户列表显示
-  updateUserList([...onlineUsers.entries()].map(([id, userId]) => ({ id, userId })));
+  updateUserList([...onlineUsers.entries()].map(([id, userData]) => ({ 
+    id, 
+    userId: userData.userId,
+    ip: userData.ip || 'unknown'
+  })));
   
   // 添加系统消息
   let message;
-  const userName = onlineUsers.get(peerId) || '未知用户';
+  const userName = userInfo?.userId || '未知用户';
   switch (state) {
     case ConnectionState.CONNECTING:
       message = `正在与 ${userName} 建立连接...`;

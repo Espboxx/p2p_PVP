@@ -1,4 +1,4 @@
-import { rtcConfig, iceConfig, CONNECTION_TIMEOUT, ICE_GATHERING_TIMEOUT, ConnectionPriority } from './config.js';
+import { rtcConfig, iceConfig, CONNECTION_TIMEOUT, ICE_GATHERING_TIMEOUT, ConnectionPriority, DATA_CHANNEL_CONFIG, HEALTH_CHECK_CONFIG, MAX_RECONNECT_ATTEMPTS } from './config.js';
 import { socket, onlineUsers } from './socket.js';
 import { setupDataChannel } from './dataChannel.js';
 import { displayMessage, updateUIState, updateUserList } from './ui.js';
@@ -8,6 +8,14 @@ export const peerConnections = new Map(); // key: socketId, value: { pc: RTCPeer
 let connectionTimeouts = new Map(); // 存储连接超时计时器
 let reconnectAttempts = new Map(); // 记录重连次数
 const connectionAttempts = new Map(); // 存储连接尝试次数
+const keepAliveIntervals = new Map(); // 存储保活定时器
+
+// 保活消息间隔（毫秒）
+const KEEP_ALIVE_INTERVAL = 5000;
+// 最大允许的连续丢失保活消息数
+const MAX_MISSED_KEEPALIVE = 3;
+// 保活消息计数器
+const keepAliveMissed = new Map();
 
 // 添加连接状态监控
 let iceGatheringTimeouts = new Map();
@@ -16,7 +24,21 @@ let candidateTypes = new Map(); // 记录收集到的候选项类型
 // 存储每个连接的候选项信息
 const candidateInfo = new Map();
 
+// 存储连接健康检查定时器
+const healthCheckIntervals = new Map();
+// 存储ICE重启计数器
+const iceRestartCounters = new Map();
+// 存储最后一次接收到的ICE候选项时间
+const lastIceCandidateTime = new Map();
+
 export async function createPeerConnection(targetId) {
+    console.log(`Creating peer connection for ${targetId}`);
+    
+    // 清理现有连接
+    if (peerConnections.has(targetId)) {
+        cleanupConnection(targetId);
+    }
+
     const userId = onlineUsers.get(targetId);
     // 检查目标用户是否在线且有效
     if (!userId) {
@@ -24,194 +46,116 @@ export async function createPeerConnection(targetId) {
         return null;
     }
 
+    // 检查是否已经存在活跃连接
+    const existingConnection = peerConnections.get(targetId);
+    if (existingConnection) {
+        if (existingConnection.dataChannel?.readyState === 'open' && 
+            existingConnection.pc.connectionState === 'connected') {
+            console.log(`已存在与 ${targetId} 的活跃连接，不创建新连接`);
+            return existingConnection.pc;
+        }
+        // 如果连接存在但状态不对，关闭旧连接
+        existingConnection.pc.close();
+        peerConnections.delete(targetId);
+    }
+
     try {
-        // 设置初始连接状态
-        updateConnectionState(targetId, ConnectionState.CONNECTING, {
-            onlineUsers,
-            updateUserList,
-            displayMessage
+        // 创建新的RTCPeerConnection
+        const pc = new RTCPeerConnection(rtcConfig);
+        const dataChannel = pc.createDataChannel('data', {
+            ...DATA_CHANNEL_CONFIG,
+            negotiated: true,
+            id: 0
         });
         
-        const pc = new RTCPeerConnection(rtcConfig);
-        
-        const connection = { pc, dataChannel: null, currentTransfer: null };
-        peerConnections.set(targetId, connection);
-        
-        // 设置连接超时
-        const timeoutId = setTimeout(() => {
-            handleConnectionTimeout(targetId);
-        }, CONNECTION_TIMEOUT);
-        
-        connectionTimeouts.set(targetId, timeoutId);
-        
-        // 设置 ICE 收集超时
-        const iceTimeoutId = setTimeout(() => {
-            handleIceGatheringTimeout(targetId);
-        }, ICE_GATHERING_TIMEOUT);
-        
-        iceGatheringTimeouts.set(targetId, iceTimeoutId);
-        
-        const dataChannel = pc.createDataChannel('chatChannel');
         setupDataChannel(dataChannel, targetId);
-        connection.dataChannel = dataChannel;
-        
-        pc.ondatachannel = (event) => {
-            const receiveChannel = event.channel;
-            console.log(`收到来自 ${targetId} 的数据通道`);
-            setupDataChannel(receiveChannel, targetId);
-            const conn = peerConnections.get(targetId);
-            if (conn) {
-                conn.dataChannel = receiveChannel;
-                console.log(`接收的数据通道已绑定到 ${targetId}`);
-                
-                // 连接成功，清除超时计时器
-                clearConnectionTimeout(targetId);
+        setupKeepAlive(targetId, dataChannel);
+
+        // 存储连接信息
+        peerConnections.set(targetId, { pc, dataChannel });
+
+        // 增强的连接状态监控
+        pc.onconnectionstatechange = () => {
+            console.log(`连接状态变化 (${targetId}):`, pc.connectionState);
+            handleConnectionStateChange(pc, targetId, dataChannel);
+            
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                clearKeepAlive(targetId);
+                handleConnectionFailure(targetId);
+            } else if (pc.connectionState === 'connected') {
+                resetConnectionAttempts(targetId);
+                setupKeepAlive(targetId, dataChannel);
             }
         };
-        
-        // 监控 ICE 候选项类型
-        pc.onicecandidate = ({ candidate }) => {
-            handleIceCandidate(pc, targetId, candidate);
+
+        // 增强的ICE连接状态监控
+        pc.oniceconnectionstatechange = () => {
+            console.log(`ICE连接状态变化 (${targetId}):`, pc.iceConnectionState);
+            if (pc.iceConnectionState === 'failed') {
+                handleIceFailure(targetId, pc);
+            } else if (pc.iceConnectionState === 'disconnected') {
+                setTimeout(() => {
+                    if (pc.iceConnectionState === 'disconnected') {
+                        handleIceFailure(targetId, pc);
+                    }
+                }, 3000); // 等待3秒后如果仍然断开则重启ICE
+            }
         };
-        pc.onnegotiationneeded = async () => {
+
+        // 设置数据通道处理
+        pc.ondatachannel = (event) => {
+            const receivedChannel = event.channel;
+            setupDataChannel(receivedChannel, targetId);
+            peerConnections.get(targetId).dataChannel = receivedChannel;
+        };
+
+        // 设置连接超时
+        handleConnectionTimeout(targetId);
+
+        // 只有ID较小的一方主动创建offer
+        const shouldCreateOffer = socket.id < targetId;
+        
+        if (shouldCreateOffer) {
             try {
-                await pc.setLocalDescription(await pc.createOffer());
-                console.log(`发送 offer 给 ${targetId}`);
-                
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
                 socket.emit('signal', {
                     to: targetId,
                     signal: { 
-                        type: 'offer', 
-                        offer: pc.localDescription 
+                        type: 'offer',
+                        sdp: offer.sdp 
                     }
                 });
-            } catch (err) {
-                console.error('创建 offer 失败:', err);
+            } catch (error) {
+                console.error('创建 offer 失败:', error);
+                handleConnectionFailure(targetId);
+                return null;
             }
-        };
-      
-        pc.onconnectionstatechange = () => {
-            handleConnectionStateChange(pc, targetId, dataChannel);
-            console.log(`Connection state changed to: ${pc.connectionState} for peer ${targetId}`);
-            
-            // 添加更详细的状态日志
-            console.log(`ICE Connection state: ${pc.iceConnectionState}`);
-            console.log(`Data channel state: ${dataChannel.readyState}`);
-            
-            let connectionState;
-            
-            // 分离连接状态检查逻辑
-            if (pc.connectionState === 'connected' && dataChannel.readyState === 'open') {
-                connectionState = ConnectionState.CONNECTED;
-                // 连接成功时重置重连计数
-                connectionAttempts.delete(targetId);
-            } else if (pc.connectionState === 'connecting' || pc.connectionState === 'new') {
-                connectionState = ConnectionState.CONNECTING;
-            } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
-                // 获取当前重连次数
-                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
-                connectionAttempts.set(targetId, { attempts });
-                
-                if (attempts >= 3) {
-                    connectionState = ConnectionState.FAILED;
-                    console.log(`连接失败，已重试 ${attempts} 次`);
-                } else {
-                    connectionState = ConnectionState.DISCONNECTED;
-                    // 设置重连延迟，避免立即重连
-                    setTimeout(() => {
-                        if (onlineUsers.has(targetId)) {
-                            console.log(`尝试第 ${attempts} 次重连...`);
-                            handleConnectionFailure(targetId);
-                        }
-                    }, 1000 * attempts);
-                }
-            }
+        }
 
-            // 只在状态确实发生变化时更新
-            if (connectionState) {
-                updateConnectionState(targetId, connectionState, {
-                    onlineUsers,
-                    updateUserList,
-                    displayMessage
-                });
-                
-                // 立即触发 UI 更新
-                requestAnimationFrame(() => {
-                    updateUIState();
-                });
-            }
-
-            // 广播状态变化
-            socket.emit('connection-state-change', {
-                targetId,
-                state: pc.connectionState,
-                dataChannelState: dataChannel.readyState
-            });
-
-            // 处理连接状态
-            if (pc.connectionState === 'connected') {
-                clearConnectionTimeout(targetId);
-                const peerName = onlineUsers.get(targetId) || '未知用户';
-                displayMessage(`系统: 与 ${peerName} 的连接已建立`, 'system');
-            }
-
-            if (pc.connectionState === 'failed') {
-                // 分析连接失败原因
-                analyzeConnectionFailure(targetId);
-            }
-        };
-      
-        // 添加 ICE 连接状态监听
-        pc.oniceconnectionstatechange = () => {
-            console.log(`ICE连接状态 (${targetId}):`, pc.iceConnectionState);
-            
-            // 只在 ICE 连接失败时处理
-            if (pc.iceConnectionState === 'failed') {
-                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
-                if (attempts < 3) {
-                    console.log(`ICE 连接失败，尝试重启 ICE...`);
-                    pc.restartIce();
-                }
-            }
-        };
-
-        // 修改数据通道状态处理
-        dataChannel.onopen = () => {
-            console.log(`Data channel to ${targetId} opened`);
-            // 确保连接状态正确
-            if (pc.connectionState === 'connected') {
-                updateConnectionState(targetId, ConnectionState.CONNECTED, {
-                    onlineUsers,
-                    updateUserList,
-                    displayMessage
-                });
-                // 立即触发 UI 更新
-                requestAnimationFrame(() => {
-                    updateUIState();
+        // 设置ICE候选项处理
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                lastIceCandidateTime.set(targetId, Date.now());
+                socket.emit('signal', {
+                    to: targetId,
+                    from: socket.id,
+                    signal: {
+                        type: 'candidate',
+                        candidate: event.candidate
+                    }
                 });
             }
         };
 
-        dataChannel.onclose = () => {
-            console.log(`Data channel to ${targetId} closed`);
-            // 只在连接仍然存在时处理关闭事件
-            if (peerConnections.has(targetId)) {
-                const attempts = (connectionAttempts.get(targetId)?.attempts || 0) + 1;
-                if (attempts < 3) {
-                    console.log(`数据通道关闭，尝试重新建立...`);
-                    handleConnectionFailure(targetId);
-                    // 立即触发 UI 更新
-                    requestAnimationFrame(() => {
-                        updateUIState();
-                    });
-                }
-            }
-        };
+        // 启动健康检查
+        startHealthCheck(targetId);
 
         return pc;
-    } catch (err) {
-        console.error('创建对等连接失败:', err);
-        throw err;
+    } catch (error) {
+        console.error(`创建与 ${targetId} 的连接失败:`, error);
+        handleConnectionFailure(targetId);
+        return null;
     }
 }
 
@@ -231,6 +175,7 @@ function handleConnectionTimeout(targetId) {
 
 function handleConnectionFailure(targetId) {
     clearConnectionTimeout(targetId);
+    clearKeepAlive(targetId);
     
     if (!onlineUsers.has(targetId)) {
         console.log(`用户 ${targetId} 已离线，不进行重连`);
@@ -244,33 +189,22 @@ function handleConnectionFailure(targetId) {
         return;
     }
     
-    // 检查现有连接状态
-    const existingConnection = peerConnections.get(targetId);
-    if (existingConnection) {
-        const { pc, dataChannel } = existingConnection;
-        if (pc.connectionState === 'connected' || 
-            pc.connectionState === 'connecting' || 
-            dataChannel?.readyState === 'open') {
-            console.log('已存在活跃连接，不进行重连');
-            return;
-        }
+    const attempts = connectionAttempts.get(targetId)?.attempts || 0;
+    if (attempts >= 3) {
+        console.log(`重连次数过多 (${attempts})，停止重连`);
+        updateConnectionState(targetId, ConnectionState.FAILED, {
+            onlineUsers,
+            updateUserList,
+            displayMessage
+        });
+        return;
     }
     
-    // 获取当前重试次数并增加
-    const attempts = connectionAttempts.get(targetId)?.attempts || 0;
     connectionAttempts.set(targetId, { attempts: attempts + 1 });
     console.log(`准备第 ${attempts + 1} 次重连...`);
     
-    // 使用递增延迟，但设置最大延迟为10秒
-    const delay = Math.min(1000 * (attempts + 1), 10000);
-    
-    setTimeout(async () => {
-        try {
-            await autoReconnect(targetId);
-        } catch (err) {
-            console.error('自动重连失败:', err);
-        }
-    }, delay);
+    const delay = Math.min(1000 * Math.pow(2, attempts), 10000);
+    setTimeout(() => autoReconnect(targetId), delay);
 }
 
 async function autoReconnect(targetId) {
@@ -331,100 +265,60 @@ export async function reconnect(targetId) {
 
 export async function handleSignal(targetId, signal) {
     try {
-        // 获取或创建连接
-        let connection = peerConnections.get(targetId);
-        if (!connection) {
-            console.log(`为 ${targetId} 创建新的连接`);
-            await createPeerConnection(targetId);
-            connection = peerConnections.get(targetId);
-        }
+        let pc = peerConnections.get(targetId)?.pc;
         
-        if (!connection || !connection.pc) {
-            console.error('无法获取有效的连接对象');
-            return;
+        if (!pc) {
+            pc = (await createPeerConnection(targetId));
+            if (!pc) {
+                throw new Error('创建连接失败');
+            }
         }
 
-        const pc = connection.pc;
-        
-        switch (signal.type) {
-            case 'offer':
-                try {
-                    // 检查状态是否允许设置远程 offer
-                    if (pc.signalingState !== 'stable') {
-                        console.log('当前状态不是 stable，正在回滚...');
-                        await Promise.all([
-                            pc.setLocalDescription({type: "rollback"}),
-                            pc.setRemoteDescription(signal.offer)
-                        ]);
-                    } else {
-                        await pc.setRemoteDescription(signal.offer);
-                    }
-                    
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    
-                    socket.emit('signal', {
-                        to: targetId,
-                        signal: { 
-                            type: 'answer', 
-                            answer: pc.localDescription 
-                        }
-                    });
-                } catch (err) {
-                    console.error('处理 offer 失败:', err);
-                    console.log('当前信令状态:', pc.signalingState);
-                    console.log('当前连接状态:', pc.connectionState);
-                    handleConnectionFailure(targetId);
+        if (signal.type === 'offer') {
+            if (pc.signalingState === 'have-local-offer') {
+                // 如果我们已经有一个本地offer，比较ID来决定谁的offer优先
+                if (socket.id > targetId) {
+                    console.log('收到优先级更高的offer，回滚本地offer');
+                    await pc.setLocalDescription({type: "rollback"});
+                } else {
+                    console.log('忽略优先级较低的offer');
+                    return;
                 }
-                break;
-
-            case 'answer':
-                try {
-                    // 检查状态是否允许设置远程 answer
-                    if (pc.signalingState === 'have-local-offer') {
-                        await pc.setRemoteDescription(signal.answer);
-                        console.log(`成功设置来自 ${targetId} 的远程answer`);
-                    } else {
-                        console.warn(`无法设置远程 answer，当前状态: ${pc.signalingState}`);
-                        // 如果状态不对，可能需要重新协商
-                        if (pc.signalingState === 'stable') {
-                            console.log('触发重新协商...');
-                            await pc.createOffer();
-                        }
-                    }
-                } catch (err) {
-                    console.error('处理 answer 失败:', err);
-                    console.log('当前信令状态:', pc.signalingState);
-                    console.log('当前连接状态:', pc.connectionState);
-                    handleConnectionFailure(targetId);
+            }
+            // 确保 signal.sdp 存在且是字符串
+            if (typeof signal.sdp !== 'string') {
+                console.error('无效的 SDP:', signal.sdp);
+                return;
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription({
+                type: 'offer',
+                sdp: signal.sdp
+            }));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            socket.emit('signal', {
+                to: targetId,
+                signal: { 
+                    type: 'answer',
+                    sdp: answer.sdp
                 }
-                break;
-
-            case 'candidate':
-                try {
-                    if (signal.candidate) {
-                        if (pc.remoteDescription) {
-                            await pc.addIceCandidate(signal.candidate);
-                        } else {
-                            // 如果还没有远程描述，先保存候选项
-                            if (!connection.pendingCandidates) {
-                                connection.pendingCandidates = [];
-                            }
-                            connection.pendingCandidates.push(signal.candidate);
-                            console.log('保存待处理的 ICE candidate');
-                        }
-                    }
-                } catch (err) {
-                    console.error('添加 ICE candidate 失败:', err);
-                }
-                break;
-
-            default:
-                console.log('未知的信令类型:', signal.type);
+            });
+        } else if (signal.type === 'answer') {
+            // 确保 signal.sdp 存在且是字符串
+            if (typeof signal.sdp !== 'string') {
+                console.error('无效的 SDP:', signal.sdp);
+                return;
+            }
+            await pc.setRemoteDescription(new RTCSessionDescription({
+                type: 'answer',
+                sdp: signal.sdp
+            }));
+        } else if (signal.type === 'candidate' && pc.remoteDescription) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
         }
-    } catch (err) {
-        console.error('信令处理错误:', err);
-        displayMessage(`系统: 连接建立失败，请刷新页面重试`, 'system');
+    } catch (error) {
+        console.error('处理信令失败:', error);
+        handleConnectionFailure(targetId);
     }
 }
 
@@ -589,6 +483,175 @@ function handleConnectionStateChange(pc, targetId, dataChannel) {
         // 清理其他正在进行的连接尝试
         clearConnectionTimeout(targetId);
     }
+}
+
+// 设置保活机制
+function setupKeepAlive(targetId, dataChannel) {
+    clearKeepAlive(targetId);
+    keepAliveMissed.set(targetId, 0);
+    
+    const interval = setInterval(() => {
+        if (dataChannel.readyState === 'open') {
+            try {
+                dataChannel.send(JSON.stringify({
+                    type: 'keepalive',
+                    timestamp: Date.now()
+                }));
+                
+                const missedCount = keepAliveMissed.get(targetId) || 0;
+                if (missedCount > 0) {
+                    keepAliveMissed.set(targetId, missedCount - 1);
+                }
+            } catch (err) {
+                console.warn(`发送保活消息失败 (${targetId}):`, err);
+                handleKeepAliveFailure(targetId);
+            }
+        }
+    }, KEEP_ALIVE_INTERVAL);
+    
+    keepAliveIntervals.set(targetId, interval);
+}
+
+// 清理保活定时器
+function clearKeepAlive(targetId) {
+    const interval = keepAliveIntervals.get(targetId);
+    if (interval) {
+        clearInterval(interval);
+        keepAliveIntervals.delete(targetId);
+    }
+    keepAliveMissed.delete(targetId);
+}
+
+// 处理保活失败
+function handleKeepAliveFailure(targetId) {
+    const missedCount = (keepAliveMissed.get(targetId) || 0) + 1;
+    keepAliveMissed.set(targetId, missedCount);
+    
+    if (missedCount >= MAX_MISSED_KEEPALIVE) {
+        console.warn(`连续 ${missedCount} 次未收到保活响应，准备重连...`);
+        handleConnectionFailure(targetId);
+    }
+}
+
+// 处理ICE失败
+async function handleIceFailure(targetId, peerConnection) {
+    const restartCount = iceRestartCounters.get(targetId) || 0;
+    
+    if (restartCount < MAX_RECONNECT_ATTEMPTS) {
+        console.log(`Attempting ICE restart for ${targetId}, attempt ${restartCount + 1}`);
+        
+        try {
+            // 检查自上次ICE候选项的时间
+            const lastTime = lastIceCandidateTime.get(targetId) || 0;
+            const timeSinceLastCandidate = Date.now() - lastTime;
+            
+            if (timeSinceLastCandidate > ICE_GATHERING_TIMEOUT) {
+                await restartIce(targetId, peerConnection);
+                iceRestartCounters.set(targetId, restartCount + 1);
+            }
+        } catch (error) {
+            console.error('ICE restart failed:', error);
+            cleanupConnection(targetId);
+        }
+    } else {
+        console.log(`Max ICE restart attempts reached for ${targetId}`);
+        cleanupConnection(targetId);
+    }
+}
+
+// 重启ICE连接
+async function restartIce(targetId, peerConnection) {
+    try {
+        // 检查信令状态
+        if (peerConnection.signalingState === 'have-remote-offer') {
+            // 如果我们有远程offer，需要先回滚
+            console.log('回滚远程offer以准备ICE重启');
+            await peerConnection.setLocalDescription({type: "rollback"});
+        } else if (peerConnection.signalingState !== 'stable') {
+            console.log(`当前信令状态不适合ICE重启: ${peerConnection.signalingState}`);
+            return;
+        }
+
+        console.log('创建带有ICE重启的offer');
+        const offer = await peerConnection.createOffer({ 
+            iceRestart: true,
+            offerToReceiveAudio: false,
+            offerToReceiveVideo: false
+        });
+        
+        await peerConnection.setLocalDescription(offer);
+        
+        socket.emit('signal', {
+            to: targetId,
+            from: socket.id,
+            signal: {
+                type: 'offer',
+                sdp: offer.sdp
+            }
+        });
+    } catch (error) {
+        console.error('Error during ICE restart:', error);
+        throw error;
+    }
+}
+
+// 启动连接健康检查
+function startHealthCheck(targetId) {
+    if (healthCheckIntervals.has(targetId)) {
+        clearInterval(healthCheckIntervals.get(targetId));
+    }
+
+    const interval = setInterval(async () => {
+        const connection = peerConnections.get(targetId);
+        if (!connection) {
+            clearInterval(interval);
+            return;
+        }
+
+        const dataChannel = connection.dataChannel;
+        if (!dataChannel || dataChannel.readyState !== 'open') {
+            console.log(`Data channel not ready for ${targetId}`);
+            handleIceFailure(targetId, connection.pc);
+            return;
+        }
+
+        // 发送健康检查消息
+        try {
+            dataChannel.send(JSON.stringify({
+                type: 'health_check',
+                timestamp: Date.now()
+            }));
+        } catch (error) {
+            console.error('Health check failed:', error);
+            handleIceFailure(targetId, connection.pc);
+        }
+    }, HEALTH_CHECK_CONFIG.interval);
+
+    healthCheckIntervals.set(targetId, interval);
+}
+
+// 清理连接
+function cleanupConnection(targetId) {
+    console.log(`Cleaning up connection for ${targetId}`);
+    
+    // 清理健康检查定时器
+    if (healthCheckIntervals.has(targetId)) {
+        clearInterval(healthCheckIntervals.get(targetId));
+        healthCheckIntervals.delete(targetId);
+    }
+
+    // 清理数据通道
+    if (peerConnections.has(targetId)) {
+        const connection = peerConnections.get(targetId);
+        if (connection) {
+            connection.dataChannel.close();
+        }
+        peerConnections.delete(targetId);
+    }
+
+    // 清理其他状态
+    iceRestartCounters.delete(targetId);
+    lastIceCandidateTime.delete(targetId);
 }
 
 // ... 其他 WebRTC 相关函数 ... 

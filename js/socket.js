@@ -9,13 +9,13 @@ import {
   updateConnectionState,
   connectionAttempts 
 } from './connectionState.js';
-import { io } from './io.js';
 
 // 在文件开头添加默认房间常量
 const DEFAULT_ROOM = 'public';
 
 // 生成随机用户ID
 const userId = Math.random().toString(36).substring(2, 8);
+// 使用全局的 io 对象
 export const socket = io({ query: { userId } });
 
 export let currentRoom = null;
@@ -24,6 +24,10 @@ export const onlineUsers = new Map(); // key: socketId, value: userId
 // Socket事件处理
 socket.on('room-joined', ({ roomId, members }) => {
   console.log(`成功加入房间 ${roomId}，成员列表:`, members);
+  
+  // 清除连接状态显示
+  const statusDiv = document.getElementById('connectionStatus');
+  statusDiv.textContent = '';
   
   // 检查是否有未知用户
   const unknownUsers = members.filter(member => !member.userId);
@@ -275,79 +279,13 @@ function leaveRoom() {
   }
 }
 
-// 修改连接处理
-io.on('connection', (socket) => {
-  const clientIp = getClientIp(socket);
-  console.log(`新连接: ${socket.id} (IP: ${clientIp})`);
+// 错误处理
+socket.on('error', (error) => {
+  console.error('Socket.IO Error:', error);
+  // 更新连接状态显示
+  const statusDiv = document.getElementById('connectionStatus');
+  statusDiv.textContent = '连接失败';
+  statusDiv.style.color = 'var(--danger-color)';
+});
 
-  // 加入房间处理
-  socket.on('join-room', (roomId) => {
-    try {
-      if (!roomId) {
-        return socket.emit('error', 'Room ID cannot be empty');
-      }
-
-      const userId = socket.handshake.query.userId;
-      if (!userId) {
-        return socket.emit('error', 'User ID cannot be empty');
-      }
-
-      // 离开之前的房间
-      if (socket.room) {
-        socket.leave(socket.room);
-        rooms.get(socket.room)?.delete(socket.id);
-      }
-
-      socket.join(roomId);
-      socket.room = roomId;
-
-      if (!addUserToRoom(socket, roomId, userId)) {
-        return socket.emit('error', 'Failed to join room');
-      }
-
-      // 存储用户IP信息
-      const userInfo = {
-        userId,
-        roomId,
-        ip: clientIp
-      };
-      users.set(socket.id, userInfo);
-
-      const members = getRoomMembers(roomId);
-
-      // 发送加入成功消息给新用户
-      socket.emit('room-joined', {
-        roomId,
-        members: members.map(member => ({
-          ...member,
-          ip: users.get(member.id)?.ip
-        }))
-      });
-
-      // 广播给所有用户更新后的用户列表
-      io.in(roomId).emit('room-users-updated', members.map(member => ({
-        ...member,
-        ip: users.get(member.id)?.ip
-      })));
-
-      // 通知其他用户有新用户加入
-      socket.to(roomId).emit('user-connected', {
-        id: socket.id,
-        userId,
-        ip: clientIp
-      });
-
-      console.log(`用户加入房间:`, {
-        userId,
-        roomId,
-        ip: clientIp,
-        socketId: socket.id
-      });
-    } catch (error) {
-      console.error('Error in join-room:', error);
-      socket.emit('error', 'Internal server error');
-    }
-  });
-
-  // ... existing code ...
-}); 
+// 删除服务器端代码，从这里开始删除到文件末尾 

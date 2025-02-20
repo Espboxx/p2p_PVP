@@ -1,0 +1,433 @@
+/* 表情按钮 */
+.emoji-btn {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-short) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+}
+
+.emoji-btn:hover {
+  color: var(--primary-color);
+  background: var(--hover-bg);
+  transform: scale(1.05);
+}
+
+.emoji-btn:active {
+  transform: scale(0.95);
+}
+
+.emoji-btn svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+/* 表情面板 */
+.emoji-panel {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  background: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  width: 350px;
+  max-height: 400px;
+  display: none;
+  flex-direction: column;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  z-index: 1000;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all var(--transition-short) ease;
+}
+
+.emoji-panel.active {
+  display: flex;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 表情分类 */
+.emoji-categories {
+  display: flex;
+  overflow-x: auto;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+  gap: 4px;
+}
+
+.emoji-categories button {
+  background: transparent;
+  border: none;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 4px;
+  transition: all var(--transition-short) ease;
+  font-size: 0.875rem;
+}
+
+.emoji-categories button:hover,
+.emoji-categories button.active {
+  background: var(--hover-bg);
+  color: var(--text-color);
+}
+
+/* 表情搜索 */
+.emoji-search {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.emoji-search input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--input-bg);
+  color: var(--text-color);
+  font-size: 0.875rem;
+}
+
+.emoji-search input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* 表情列表 */
+.emoji-list {
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  overflow-y: auto;
+  height: 300px;
+}
+
+.emoji-item {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all var(--transition-short) ease;
+  font-size: 24px;
+}
+
+.emoji-item:hover {
+  background: var(--hover-bg);
+  transform: scale(1.1);
+}
+
+/* 空状态提示 */
+.empty-emoji-message {
+  text-align: center;
+  padding: 20px;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-style: italic;
+}
+
+/* 文件消息 */
+.file-message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  max-width: 400px;
+}
+
+.message.self .file-message {
+  background: var(--primary-color);
+  color: white;
+}
+
+/* 文件信息区域 */
+.file-info-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.file-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.file-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.file-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 500;
+  color: var(--text-color);
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.file-meta {
+  font-size: 0.875rem;
+  color: var(--success-color);
+}
+
+/* 进度条 */
+.progress-container {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progress-wrapper {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.progress-container.completed .progress-bar {
+  background: var(--success-color);
+}
+
+.status-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.progress-text {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary);
+}
+
+.progress-text.completed {
+  color: var(--success-color);
+}
+
+.speed-text {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+/* 文件接收提示 */
+.file-receive-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--input-bg);
+  border-radius: 8px;
+  margin: 8px 0;
+  border: 1px solid var(--border-color);
+}
+
+/* 文件操作按钮 */
+.file-action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.file-action-buttons button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.accept-file-btn {
+  background: var(--success-color);
+  color: white;
+}
+
+.accept-file-btn:hover {
+  background: var(--success-color-dark);
+}
+
+.reject-file-btn {
+  background: var(--danger-color);
+  color: white;
+}
+
+.reject-file-btn:hover {
+  background: var(--danger-color-dark);
+}
+
+/* 文件状态标记 */
+.file-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  background: var(--tertiary-bg);
+  color: var(--text-color);
+}
+
+.file-status-badge.completed {
+  background: var(--success-color);
+  color: white;
+}
+
+/* 文件下载容器 */
+.file-download-container {
+  background: var(--input-bg);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+  border: 1px solid var(--border-color);
+  animation: slideIn 0.3s ease;
+  max-width: 400px;
+}
+
+.file-download-info {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.download-btn {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: all var(--transition-short) ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.download-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.download-btn:active {
+  transform: translateY(1px);
+}
+
+.download-btn:disabled {
+  background: var(--success-color);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .emoji-panel {
+    width: calc(100vw - 24px);
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    margin: 0 12px;
+  }
+
+  .emoji-panel.active {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .emoji-categories {
+    padding: 6px;
+  }
+
+  .emoji-categories button {
+    padding: 4px 8px;
+    font-size: 0.8125rem;
+  }
+
+  .emoji-search {
+    padding: 6px;
+  }
+
+  .emoji-search input {
+    padding: 6px 10px;
+  }
+
+  .emoji-list {
+    padding: 6px;
+    grid-template-columns: repeat(6, 1fr);
+    height: 250px;
+  }
+
+  .emoji-item {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+
+  .file-message {
+    max-width: 300px;
+  }
+
+  .file-action-buttons {
+    flex-direction: column;
+  }
+
+  .file-download-container {
+    padding: 12px;
+    margin: 8px 0;
+    max-width: 300px;
+  }
+
+  .file-info-section {
+    margin-bottom: 8px;
+  }
+
+  .file-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .file-icon svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  .download-btn {
+    width: 100%;
+    justify-content: center;
+  }
+} 

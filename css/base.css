@@ -1,0 +1,248 @@
+/* 主题变量 */
+:root {
+  /* 主色调 */
+  --primary-color: #5865f2;    /* Discord品牌蓝色 */
+  --primary-dark: #4752c4;
+  --primary-light: #7983f5;
+  
+  /* 背景色 */
+  --bg-color: #36393f;         /* Discord主背景色 */
+  --secondary-bg: #2f3136;     /* Discord侧边栏背景 */
+  --tertiary-bg: #202225;      /* Discord深色背景 */
+  --input-bg: #40444b;         /* Discord输入框背景 */
+  --hover-bg: rgba(79, 84, 92, 0.16);
+  
+  /* 文本颜色 */
+  --text-color: #dcddde;       /* Discord主文本色 */
+  --text-secondary: #b9bbbe;
+  --text-muted: #72767d;
+  
+  /* 状态颜色 */
+  --success-color: #3ba55c;
+  --success-color-dark: #2d9150;
+  --danger-color: #ed4245;
+  --danger-color-dark: #d83c3e;
+  --warning-color: #faa81a;
+  
+  /* 边框和阴影 */
+  --border-color: #2a2c31;
+  --shadow-color: rgba(0, 0, 0, 0.2);
+  --shadow-light: rgba(0, 0, 0, 0.1);
+  
+  /* 交互状态 */
+  --hover-bg: rgba(79, 84, 92, 0.16);
+  --active-bg: rgba(79, 84, 92, 0.24);
+  --mention-bg: rgba(88, 101, 242, 0.3);
+  
+  /* 动画时间 */
+  --transition-short: 0.15s;
+  --transition-normal: 0.25s;
+  --transition-long: 0.35s;
+}
+
+/* 重置样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* 基础字体和颜色 */
+body {
+  font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  color: var(--text-color);
+  background: var(--bg-color);
+  overflow-x: hidden;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 基础布局 */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-container {
+  flex: 1;
+  display: flex;
+  background: var(--bg-color);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px var(--shadow-color);
+  height: calc(100vh - 40px);
+  border: 1px solid var(--border-color);
+}
+
+/* 全局滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--tertiary-bg);
+  border-radius: 4px;
+  min-height: 40px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 基础动画 */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+/* 响应式基础布局 */
+@media (max-width: 868px) {
+  .container {
+    padding: 10px;
+  }
+  
+  .chat-container {
+    height: calc(100vh - 20px);
+    border-radius: 8px;
+  }
+}
+
+/* 隐藏元素 */
+.hidden {
+  display: none !important;
+}
+
+/* 连接状态样式 */
+#connectionStatus {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 0.9rem;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  z-index: 1000;
+  transition: all var(--transition-normal) ease;
+  opacity: 0.9;
+  border: 1px solid var(--border-color);
+}
+
+#connectionStatus:empty {
+  opacity: 0;
+  transform: translateX(-50%) translateY(-100%);
+}
+
+/* 拖拽覆盖层 */
+.drag-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+  display: none;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+}
+
+.drag-overlay.active {
+  display: flex;
+}
+
+.drag-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-color);
+  font-size: 1.2rem;
+  padding: 32px;
+  background: var(--bg-color);
+  border-radius: 12px;
+  border: 2px dashed var(--primary-color);
+}
+
+.drag-message svg {
+  width: 48px;
+  height: 48px;
+  color: var(--primary-color);
+}
+
+/* 系统消息容器和动画 */
+#systemMessageContainer {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.system-message {
+  background: var(--bg-color);
+  color: var(--text-color);
+  padding: 8px 16px;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px var(--shadow-color);
+  animation: slideInDown 0.3s ease, fadeOut 0.3s ease 4.7s;
+  border: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+
+@keyframes slideInDown {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 0.9;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0;
+  }
+} 

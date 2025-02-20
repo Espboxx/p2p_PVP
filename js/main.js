@@ -2,6 +2,7 @@ import { socket, joinRoom } from './socket.js';
 import { sendMessage } from './dataChannel.js';
 import { sendFile } from './fileTransfer.js';
 import { updateUIState, setupUserIdEdit } from './ui.js';
+import { initEmojiPicker, initImagePaste } from './imageAndEmoji.js';
 
 // 初始化事件监听
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 初始化用户ID编辑功能
   setupUserIdEdit();
+
+  // 初始化表情和图片功能
+  initEmojiPicker();
+  initImagePaste();
 
   // 显示模态框
   document.getElementById('joinRoomBtn').addEventListener('click', (e) => {
@@ -92,23 +97,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 自动调整输入框高度
   function adjustInputHeight(input) {
-    // 保存当前滚动位置
-    const scrollPos = input.scrollTop;
-    
-    // 重置高度
+    // 重置高度和滚动条
     input.style.height = 'auto';
+    input.style.height = input.scrollHeight + 'px';
     
-    // 计算新高度
-    const newHeight = Math.min(input.scrollHeight, 144);
-    input.style.height = newHeight + 'px';
-    
-    // 恢复滚动位置
-    input.scrollTop = scrollPos;
-    
+    // 根据内容决定是否显示滚动条
+    if (input.value) {
+      if (input.scrollHeight > 150) {
+        input.style.height = '150px';
+        input.classList.add('expanded');
+      } else {
+        input.classList.remove('expanded');
+      }
+    } else {
+      // 重置为初始高度
+      input.style.height = '24px';
+      input.classList.remove('expanded');
+    }
+
     // 更新输入区域的对齐方式
     const inputArea = input.closest('.input-area');
     if (inputArea) {
-      inputArea.style.alignItems = newHeight > 44 ? 'flex-start' : 'flex-end';
+      inputArea.style.alignItems = input.scrollHeight > 44 ? 'flex-start' : 'center';
     }
   }
 
@@ -116,9 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
   messageInput.addEventListener('input', () => {
     adjustInputHeight(messageInput);
   });
-
-  // 初始化时设置一次
-  adjustInputHeight(messageInput);
 
   // 处理粘贴事件
   messageInput.addEventListener('paste', (e) => {
@@ -130,6 +137,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 处理窗口大小改变
   window.addEventListener('resize', () => {
-    adjustInputHeight(messageInput);
+    if (messageInput.value) {
+      adjustInputHeight(messageInput);
+    }
   });
+
+  // 初始化时设置一次
+  adjustInputHeight(messageInput);
 }); 

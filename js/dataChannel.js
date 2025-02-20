@@ -3,6 +3,7 @@ import { handleFileTransfer, handleFileChunk, handleFileAccept } from './fileTra
 import { displayMessage, updateUIState } from './ui.js';
 import { onlineUsers } from './socket.js';
 import { TransferState } from './config.js';
+import { handleImageChunk } from './imageAndEmoji.js';
 
 export function setupDataChannel(channel, targetId) {
   channel.onopen = () => {
@@ -47,8 +48,23 @@ export function setupDataChannel(channel, targetId) {
 function handleMessage(message, senderId) {
   switch (message.type) {
     case 'text':
-      const senderName = onlineUsers.get(senderId) || '未知用户';
+      const senderInfo = onlineUsers.get(senderId);
+      const senderName = senderInfo?.userId || '未知用户';
       displayMessage(`${senderName}: ${message.text}`, 'text');
+      break;
+      
+    case 'image':
+      const sender = onlineUsers.get(senderId);
+      displayMessage({
+        type: 'image',
+        senderId,
+        data: message.data,
+        userId: sender?.userId
+      }, 'image');
+      break;
+
+    case 'image-chunk':
+      handleImageChunk(message, senderId);
       break;
       
     case 'file-chunk':
@@ -67,6 +83,11 @@ function handleMessage(message, senderId) {
     case 'file-accept':
       console.log('收到文件接收确认消息:', message);
       handleFileAccept(message, senderId);
+      break;
+
+    case 'health_check':
+    case 'keepalive':
+      // 这些是内部消息，用于维持连接，不需要显示给用户
       break;
       
     default:

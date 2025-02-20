@@ -4,7 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>P2P聊天室</title>
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/chat.css">
+  <link rel="stylesheet" href="css/input.css">
+  <link rel="stylesheet" href="css/sidebar.css">
+  <link rel="stylesheet" href="css/modal.css">
+  <link rel="stylesheet" href="css/emoji-file.css">
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="js/main.js"></script>
 </head>
@@ -52,12 +57,17 @@
         <div id="messages"></div>
         <div class="input-container">
           <div class="input-area">
+            <button class="emoji-btn" id="emojiBtn" title="选择表情">
+              <svg width="24" height="24" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-6c.78 2.34 2.72 4 5 4s4.22-1.66 5-4H7zm8-3c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm-6 0c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1z"/>
+              </svg>
+            </button>
             <label class="file-upload-btn" for="fileInput" title="发送文件">
               <svg width="24" height="24" viewBox="0 0 24 24">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 15V5"></path>
               </svg>
             </label>
-            <input type="file" id="fileInput" hidden>
+            <input type="file" id="fileInput" accept="*" hidden>
             <textarea id="messageInput" placeholder="发送消息..." rows="1"></textarea>
             <button id="sendBtn" title="发送消息">
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -89,6 +99,42 @@
         <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
       </svg>
       释放文件以发送
+    </div>
+  </div>
+
+  <!-- 添加表情选择器面板 -->
+  <div class="emoji-panel" id="emojiPanel">
+    <div class="emoji-categories">
+      <button class="active" data-category="frequently">常用</button>
+      <button data-category="smileys">表情</button>
+      <button data-category="people">人物</button>
+      <button data-category="nature">自然</button>
+      <button data-category="food">食物</button>
+      <button data-category="activities">活动</button>
+      <button data-category="objects">物品</button>
+      <button data-category="symbols">符号</button>
+      <button data-category="flags">旗帜</button>
+    </div>
+    <div class="emoji-search">
+      <input type="text" placeholder="搜索表情..." id="emojiSearch">
+    </div>
+    <div class="emoji-list" id="emojiList"></div>
+  </div>
+
+  <!-- 添加图片预览模态框 -->
+  <div class="modal-overlay" id="imagePreviewModal">
+    <div class="modal image-preview-modal">
+      <div class="preview-header">
+        <h3>发送图片</h3>
+        <button class="close-btn" id="closeImagePreview">&times;</button>
+      </div>
+      <div class="preview-content">
+        <img id="imagePreview" src="" alt="预览">
+      </div>
+      <div class="preview-footer">
+        <button id="cancelImageSend" class="btn-secondary">取消</button>
+        <button id="confirmImageSend" class="btn-primary">发送</button>
+      </div>
     </div>
   </div>
 </body>

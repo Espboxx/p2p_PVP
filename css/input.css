@@ -1,0 +1,258 @@
+/* 输入区域容器 */
+.input-container {
+  padding: 16px 24px;
+  background: var(--bg-color);
+  border-top: 1px solid var(--border-color);
+  position: relative;
+}
+
+.input-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--primary-color),
+    transparent
+  );
+  opacity: 0.3;
+}
+
+/* 输入区域 */
+.input-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--input-bg);
+  border-radius: 16px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  min-height: 44px;
+  transition: all var(--transition-short) ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.input-area:focus-within {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 12px rgba(88, 101, 242, 0.2);
+  background: var(--secondary-bg);
+}
+
+/* 通用按钮样式 */
+.input-area button {
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-short) ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.input-area button:hover {
+  color: var(--primary-color);
+  background: var(--hover-bg);
+  transform: translateY(-1px);
+}
+
+.input-area button:active {
+  transform: translateY(1px);
+}
+
+.input-area button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.input-area button:disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+/* 文件上传按钮 */
+.file-upload-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all var(--transition-short) ease;
+  border-radius: 12px;
+  width: 40px;
+  height: 40px;
+  margin: 0;
+  position: relative;
+}
+
+.file-upload-btn::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  left: -4px;
+  border-radius: 14px;
+  background: var(--primary-color);
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all var(--transition-short) ease;
+  z-index: -1;
+}
+
+.file-upload-btn:hover {
+  color: var(--primary-color);
+  transform: translateY(-1px);
+}
+
+.file-upload-btn:hover::after {
+  opacity: 0.1;
+  transform: scale(1);
+}
+
+.file-upload-btn:active {
+  transform: translateY(1px);
+}
+
+.file-upload-btn svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* 发送按钮 */
+#sendBtn {
+  color: var(--primary-color);
+  position: relative;
+  overflow: hidden;
+}
+
+#sendBtn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--primary-color);
+  border-radius: 12px;
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all var(--transition-short) ease;
+  z-index: -1;
+}
+
+#sendBtn:hover {
+  color: white;
+}
+
+#sendBtn:hover::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#sendBtn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+  transition: transform var(--transition-short) ease;
+}
+
+#sendBtn:hover svg {
+  transform: translateX(2px);
+}
+
+/* 消息输入框 */
+#messageInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-color);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  padding: 4px 8px;
+  resize: none;
+  height: 24px;
+  min-height: 24px;
+  max-height: 150px;
+  margin: 0;
+  overflow: hidden;
+  word-break: break-word;
+  transition: all var(--transition-short) ease;
+  align-self: center;
+}
+
+#messageInput.expanded {
+  overflow-y: auto;
+}
+
+#messageInput::placeholder {
+  color: var(--text-muted);
+  opacity: 0.7;
+  line-height: 24px;
+}
+
+#messageInput:focus {
+  outline: none;
+}
+
+#messageInput:focus::placeholder {
+  opacity: 0.5;
+}
+
+/* 输入框滚动条 */
+#messageInput::-webkit-scrollbar {
+  width: 4px;
+}
+
+#messageInput::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+#messageInput::-webkit-scrollbar-thumb {
+  background: var(--tertiary-bg);
+  border-radius: 2px;
+}
+
+#messageInput::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .input-container {
+    padding: 12px 16px;
+  }
+  
+  .input-area {
+    padding: 6px;
+    border-radius: 12px;
+  }
+  
+  .input-area button,
+  .file-upload-btn {
+    width: 36px;
+    height: 36px;
+  }
+  
+  #messageInput {
+    font-size: 1rem;
+    padding: 4px 6px;
+    height: 22px;
+    min-height: 22px;
+  }
+} 

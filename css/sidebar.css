@@ -1,0 +1,267 @@
+/* 侧边栏容器 */
+.sidebar-wrapper {
+  width: 240px;
+  background: var(--secondary-bg);
+  border-right: 1px solid var(--border-color);
+  display: flex;
+  transition: transform 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* 侧边栏主体 */
+.sidebar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--secondary-bg);
+  transition: width 0.3s ease;
+}
+
+.sidebar h3 {
+  padding: 16px;
+  margin: 0;
+  color: var(--text-color);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* 用户列表 */
+#userList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+#userList li {
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background-color 0.2s ease;
+}
+
+/* 用户信息 */
+.user-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 0.9375rem;
+  color: var(--text-color);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-ip {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 状态指示器 */
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.connected .status-indicator {
+  background: var(--success-color);
+  box-shadow: 0 0 4px var(--success-color);
+}
+
+.connecting .status-indicator {
+  background: var(--warning-color);
+  animation: pulse 1.5s infinite;
+}
+
+.disconnected .status-indicator {
+  background: var(--text-muted);
+}
+
+.failed .status-indicator {
+  background: var(--danger-color);
+}
+
+/* 连接状态文本 */
+.connection-status {
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+li.connected .connection-status {
+  color: var(--success-color);
+}
+
+li.connecting .connection-status {
+  color: var(--warning-color);
+  animation: pulse 1.5s infinite;
+}
+
+li.failed .connection-status {
+  color: var(--danger-color);
+}
+
+/* 编辑按钮 */
+.edit-user-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: all 0.2s ease;
+}
+
+.edit-user-btn:hover {
+  opacity: 1;
+  color: var(--primary-color);
+  transform: scale(1.1);
+}
+
+.edit-user-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 当前用户样式 */
+.self-user {
+  background: var(--tertiary-bg) !important;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 8px !important;
+  padding: 12px 16px !important;
+}
+
+.self-user .user-name {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+.self-user .status-indicator {
+  background-color: var(--success-color) !important;
+  box-shadow: 0 0 4px var(--success-color);
+}
+
+/* 无用户提示 */
+.no-users {
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 16px;
+}
+
+/* 侧边栏底部 */
+.sidebar-footer {
+  margin-top: auto;
+  padding: 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--secondary-bg);
+}
+
+/* 加入房间按钮 */
+.join-room-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: all 0.2s ease;
+}
+
+.join-room-btn:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+.join-room-btn:active {
+  transform: translateY(0);
+}
+
+.join-room-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+/* 切换按钮 */
+.toggle-container {
+  position: relative;
+  width: 16px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar-toggle {
+  position: absolute;
+  left: -16px;
+  width: 16px;
+  height: 40px;
+  background: var(--secondary-bg);
+  border: none;
+  border-radius: 4px 0 0 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle:hover {
+  color: var(--primary-color);
+}
+
+/* 动画 */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+/* 响应式调整 */
+@media (max-width: 868px) {
+  .sidebar-wrapper {
+    position: fixed;
+    left: -240px;
+    top: 0;
+    bottom: 0;
+    z-index: 100;
+  }
+
+  .sidebar-wrapper.active {
+    transform: translateX(240px);
+  }
+
+  .toggle-container {
+    display: none;
+  }
+} 

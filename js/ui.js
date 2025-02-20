@@ -20,7 +20,31 @@ let lastSystemMessage = {
 // 添加错误显示函数
 export function showError(message) {
   console.error(message);
-  displayMessage(`系统: ${message}`, 'system');
+  showSystemMessage(message);
+}
+
+// 添加系统消息显示函数
+function showSystemMessage(message) {
+  // 创建或获取系统消息容器
+  let systemMessageContainer = document.getElementById('systemMessageContainer');
+  if (!systemMessageContainer) {
+    systemMessageContainer = document.createElement('div');
+    systemMessageContainer.id = 'systemMessageContainer';
+    document.body.appendChild(systemMessageContainer);
+  }
+
+  // 创建新的系统消息元素
+  const messageElement = document.createElement('div');
+  messageElement.className = 'system-message';
+  messageElement.textContent = message;
+
+  // 添加到容器
+  systemMessageContainer.appendChild(messageElement);
+
+  // 5秒后移除消息
+  setTimeout(() => {
+    messageElement.remove();
+  }, 5000);
 }
 
 function toggleSidebar() {
@@ -126,12 +150,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('drop', (e) => {
     e.preventDefault();
+    dragOverlay.classList.remove('active');
   });
 
   // 文件拖入聊天区域
   chatArea.addEventListener('dragenter', (e) => {
     e.preventDefault();
-    if (hasActiveConnections()) {
+    // 检查是否有文件被拖拽
+    if (e.dataTransfer.types.includes('Files') && hasActiveConnections()) {
       dragOverlay.classList.add('active');
     }
   });
@@ -139,12 +165,20 @@ document.addEventListener('DOMContentLoaded', () => {
   // 文件在覆盖层上拖动
   dragOverlay.addEventListener('dragover', (e) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
   });
 
   // 文件离开覆盖层
   dragOverlay.addEventListener('dragleave', (e) => {
     e.preventDefault();
-    if (e.target === dragOverlay) {
+    // 只有当鼠标真正离开覆盖层时才隐藏
+    const rect = dragOverlay.getBoundingClientRect();
+    if (
+      e.clientX <= rect.left ||
+      e.clientX >= rect.right ||
+      e.clientY <= rect.top ||
+      e.clientY >= rect.bottom
+    ) {
       dragOverlay.classList.remove('active');
     }
   });
@@ -274,7 +308,7 @@ export function updateUIState() {
     const connection = peerConnections.get(id);
     return {
       id,
-      userId: userData.userId || userData, // 兼容旧格式
+      userId: userData.userId,
       ip: userData.ip || 'unknown',
       connectionState: connection?.pc.connectionState || 'new',
       dataChannelState: connection?.dataChannel?.readyState || 'closed'
@@ -287,7 +321,7 @@ export function updateUIState() {
   const userIdText = document.getElementById('userIdText');
   if (userIdText && socket.id) {
     const userData = onlineUsers.get(socket.id);
-    userIdText.textContent = userData?.userId || userData || socket.id;
+    userIdText.textContent = userData?.userId || socket.id;
   }
 }
 
@@ -333,173 +367,129 @@ function updateSystemMessage(message, messageElement) {
   };
 }
 
-// 在 displayMessage 函数中修改文件消息的处理部分
+// 修改 displayMessage 函数
 export function displayMessage(message, type = 'text') {
   const messagesDiv = document.getElementById('messages');
   
+  // 如果是系统消息，使用悬浮提示显示
   if (type === 'system') {
-    // 只显示重要的系统消息
-    if (!shouldShowSystemMessage(message)) {
-      console.log('Skipped system message:', message);
-      return;
+    showSystemMessage(message);
+    return;
+  }
+
+  const messageElement = document.createElement('div');
+  messageElement.className = 'message';
+
+  // 处理图片消息
+  if (type === 'image') {
+    const isSelf = message.senderId === socket.id;
+    if (isSelf) {
+      messageElement.classList.add('self');
     }
+    const userName = isSelf ? '我' : (message.userId || '未知用户');
     
-    // 检查是否与上一条系统消息相似
-    if (isSimularMessage(message, lastSystemMessage.text)) {
-      if (lastSystemMessage.timer) {
-        clearTimeout(lastSystemMessage.timer);
-      }
-      
-      lastSystemMessage.count++;
-      const contentDiv = lastSystemMessage.element.querySelector('.message-content');
-      contentDiv.textContent = `${message} ${lastSystemMessage.count > 1 ? `(${lastSystemMessage.count})` : ''}`;
-      
-      // 更新消息的显示时间
-      updateSystemMessage(message, lastSystemMessage.element);
-      return;
-    }
-    
-    // 创建新的系统消息
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('message', 'system');
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'message-content';
-    contentDiv.textContent = message;
-    messageElement.appendChild(contentDiv);
-    
-    // 更新系统消息状态
-    updateSystemMessage(message, messageElement);
-    
-    messagesDiv.appendChild(messageElement);
-  } else {
-    // 创建基础消息元素
-    const messageElement = document.createElement('div');
-    messageElement.classList.add('message');
-    
-    if (type === 'file') {
-      messageElement.id = `file-${message.fileId}`;
-      const senderName = message.senderId === socket.id ? '我' : 
-                        (onlineUsers.get(message.senderId) || '未知用户');
-      
-      // 添加发送者名称
-      const senderDiv = document.createElement('div');
-      senderDiv.className = 'sender-name';
-      senderDiv.textContent = senderName;
-      messageElement.appendChild(senderDiv);
-      
-      // 创建消息行容器
-      const messageRow = document.createElement('div');
-      messageRow.className = 'message-row';
-      
-      // 创建文件消息容器
-      const fileContainer = document.createElement('div');
-      fileContainer.className = 'file-message';
-      
-      // 添加文件图标和信息
-      const fileInfoSection = document.createElement('div');
-      fileInfoSection.className = 'file-info-section';
-      fileInfoSection.innerHTML = `
-        <div class="file-icon">
-          <svg width="24" height="24" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2ZM14 4L18 8H14V4ZM16 17H8V15H16V17ZM16 13H8V11H16V13Z"/>
-          </svg>
+    messageElement.innerHTML = `
+      <div class="sender-name">${userName}</div>
+      <div class="message-row">
+        <div class="message-content image-content">
+          <img src="${message.data}" alt="发送的图片" style="max-width: 300px; max-height: 300px; border-radius: 8px; cursor: pointer;">
         </div>
-        <div class="file-details">
-          <div class="file-name">${message.fileName}</div>
-          <div class="file-meta">
-            <span class="file-size">${formatSize(message.fileSize)}</span>
+        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+      </div>
+    `;
+
+    // 添加点击查看大图功能
+    const img = messageElement.querySelector('img');
+    img.addEventListener('click', () => {
+      const modal = document.getElementById('imagePreviewModal');
+      const preview = document.getElementById('imagePreview');
+      preview.src = message.data;
+      modal.classList.add('active');
+    });
+
+    messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    return;
+  }
+
+  // 处理文件消息
+  if (type === 'file') {
+    const isSelf = message.senderId === socket.id;
+    if (isSelf) {
+      messageElement.classList.add('self');
+    }
+    messageElement.id = `file-${message.fileId}`;
+    
+    messageElement.innerHTML = `
+      <div class="sender-name">${isSelf ? '我' : message.senderId}</div>
+      <div class="message-row">
+        <div class="message-content file-message">
+          <div class="file-info-section">
+            <div class="file-icon">
+              <svg viewBox="0 0 24 24">
+                <path fill="currentColor" d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+              </svg>
+            </div>
+            <div class="file-details">
+              <div class="file-name">${message.fileName}</div>
+              <div class="file-meta">${formatFileSize(message.fileSize)}</div>
+            </div>
           </div>
         </div>
-      `;
-      
-      fileContainer.appendChild(fileInfoSection);
-      
-      // 如果是接收到的文件，添加下载按钮
-      if (message.senderId !== socket.id) {
-        const downloadButton = document.createElement('button');
-        downloadButton.className = 'download-button';
-        downloadButton.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-          </svg>
-          接收文件
-        `;
-        downloadButton.onclick = (e) => {
-          e.preventDefault();
-          try {
-            acceptFileTransfer(message.fileId, message.senderId);
-            // 不在这里移除按钮，让 acceptFile 函数处理
-          } catch (error) {
-            console.error('接收文件失败:', error);
-            displayMessage('系统: 接收文件失败', 'system');
-          }
-        };
-        fileContainer.appendChild(downloadButton);
-      }
-      
-      // 添加进度条容器（初始隐藏）
-      const progressContainer = document.createElement('div');
-      progressContainer.className = 'progress-container';
-      progressContainer.style.display = 'none';
-      progressContainer.innerHTML = `
-        <div class="progress-wrapper">
-          <div class="progress-bar" style="width: 0%"></div>
-        </div>
-        <div class="progress-text">0%</div>
-        <div class="transfer-speed"></div>
-      `;
-      fileContainer.appendChild(progressContainer);
-      
-      messageRow.appendChild(fileContainer);
-      messageElement.appendChild(messageRow);
-      
-      // 如果是自己发送的文件，添加self类
-      if (message.senderId === socket.id) {
-        messageElement.classList.add('self');
-      }
-    } else if (type === 'text') {
-      // 判断是否是自己发送的消息
-      const isSelf = message.startsWith('我: ');
-      if (isSelf) {
-        messageElement.classList.add('self');
-      }
-      
-      // 分离发送者名称和消息内容
-      const [sender, ...contentParts] = message.split(': ');
-      const content = contentParts.join(': ');
-      
-      // 添加发送者名称
-      const senderDiv = document.createElement('div');
-      senderDiv.className = 'sender-name';
-      senderDiv.textContent = sender;
-      messageElement.appendChild(senderDiv);
-      
-      // 创建消息行容器
-      const messageRow = document.createElement('div');
-      messageRow.className = 'message-row';
-      
-      // 添加消息内容
-      const contentDiv = document.createElement('div');
-      contentDiv.className = 'message-content';
-      contentDiv.textContent = content;
-      
-      // 添加时间戳
-      const timeDiv = document.createElement('div');
-      timeDiv.className = 'message-time';
-      timeDiv.textContent = new Date().toLocaleTimeString('zh-CN', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      contentDiv.appendChild(timeDiv);
-      
-      messageRow.appendChild(contentDiv);
-      messageElement.appendChild(messageRow);
-    }
-    
+        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+      </div>
+    `;
+
     messagesDiv.appendChild(messageElement);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    return;
   }
-  
+
+  // 处理普通文本消息
+  if (typeof message === 'string') {
+    const isSelf = message.startsWith('我:');
+    if (isSelf) {
+      messageElement.classList.add('self');
+    }
+
+    // 分割消息并确保有内容
+    const [sender, ...contentParts] = message.split(':');
+    const content = contentParts.join(':').trim() || ' '; // 确保内容不为空
+
+    messageElement.innerHTML = `
+      <div class="sender-name">${isSelf ? '我' : sender}</div>
+      <div class="message-row">
+        <div class="message-content">${content}</div>
+        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+      </div>
+    `;
+  } else {
+    // 处理其他类型的消息对象
+    const isSelf = message.senderId === socket.id;
+    if (isSelf) {
+      messageElement.classList.add('self');
+    }
+
+    messageElement.innerHTML = `
+      <div class="sender-name">${isSelf ? '我' : (message.userId || '未知用户')}</div>
+      <div class="message-row">
+        <div class="message-content">${message.text || message.content || JSON.stringify(message)}</div>
+        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+      </div>
+    `;
+  }
+
+  messagesDiv.appendChild(messageElement);
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+
+// 格式化文件大小
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
 // 判断两条消息是否相似
@@ -511,55 +501,28 @@ function isSimularMessage(msg1, msg2) {
 }
 
 export function updateProgressBar(fileId, progress, type = 'download', speed = 0) {
-  const fileMessage = document.getElementById(`file-${fileId}`);
-  if (!fileMessage) return;
-  
-  let progressContainer = document.getElementById(`progress-container-${fileId}`);
-  
-  if (!progressContainer) {
-    progressContainer = document.createElement('div');
-    progressContainer.className = 'progress-container';
-    progressContainer.id = `progress-container-${fileId}`;
-    
-    progressContainer.innerHTML = `
-      <div class="progress-wrapper">
-        <div class="progress-bar" id="progress-${fileId}"></div>
-      </div>
-      <div class="status-container">
-        <div class="progress-text" id="progress-text-${fileId}">
-          ${type === 'download' ? '准备下载...' : '准备上传...'}
-        </div>
-        <div class="speed-text" id="speed-${fileId}"></div>
-      </div>
-    `;
-    
-    fileMessage.appendChild(progressContainer);
+  const messageElement = document.getElementById(`file-message-${fileId}`);
+  if (!messageElement) return;
+
+  const progressBar = messageElement.querySelector('.progress-bar');
+  const progressText = messageElement.querySelector('.progress-text');
+  const speedText = messageElement.querySelector('.speed-text');
+
+  if (progressBar) {
+    progressBar.style.width = `${progress}%`;
   }
-  
-  const progressBar = document.getElementById(`progress-${fileId}`);
-  const progressText = document.getElementById(`progress-text-${fileId}`);
-  const speedText = document.getElementById(`speed-${fileId}`);
-  
-  // 更新进度条
-  progressBar.style.width = `${progress}%`;
-  
-  // 更新状态文本
-  if (progress === 100) {
-    progressText.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24">
-        <path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-      </svg>
-      ${type === 'download' ? '下载完成' : '上传完成'}
-    `;
-    progressText.classList.add('completed');
-    progressContainer.classList.add('completed');
-  } else {
-    progressText.textContent = `${type === 'download' ? '下载中' : '上传中'} ${progress}%`;
+
+  if (progressText) {
+    progressText.textContent = `${type === 'upload' ? '发送中' : '接收中'} ${progress}%`;
+    if (progress === 100) {
+      progressText.textContent = '传输完成';
+      progressText.classList.add('completed');
+    }
   }
-  
-  // 更新速度显示
-  if (speed > 0) {
-    speedText.textContent = formatSpeed(speed);
+
+  if (speedText && speed > 0) {
+    const speedMB = speed / (1024 * 1024);
+    speedText.textContent = `${speedMB.toFixed(1)} MB/s`;
   }
 }
 
@@ -599,7 +562,7 @@ export function updateUserList(users) {
         userInfo.className = 'user-info';
         userInfo.innerHTML = `
             <span class="user-name">${currentUser.userId} (我)</span>
-            <span class="user-ip">${currentUser.ip}</span>
+            <span class="user-ip">${currentUser.ip || 'unknown'}</span>
         `;
         
         // 添加状态文本
@@ -674,7 +637,7 @@ export function updateUserList(users) {
         userInfo.className = 'user-info';
         userInfo.innerHTML = `
             <span class="user-name">${user.userId}</span>
-            <span class="user-ip">${user.ip}</span>
+            <span class="user-ip">${user.ip || 'unknown'}</span>
         `;
         
         // 添加状态文本
@@ -854,5 +817,3 @@ export function setupUserIdEdit() {
     
     return userIdDisplay;
 }
-
-// ... 其他 UI 相关函数 ... 
