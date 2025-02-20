@@ -1,7 +1,26 @@
 {
+  "name": "p2p-chat",
+  "version": "1.0.0",
+  "description": "A P2P chat application using WebRTC",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon --signal SIGTERM server.js"
+   
+  },
   "dependencies": {
     "express": "^4.21.2",
-    "nvm": "^0.0.4",
     "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "kill-port": "^2.0.1",
+    "nodemon": "^3.1.9"
+  },
+  "nodemonConfig": {
+    "delay": "1000",
+    "events": {
+      "restart": "kill-port 3000",
+      "crash": "kill-port 3000"
+    }
   }
 }

@@ -438,52 +438,104 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 16px;
-  color: var(--text-color);
-  transition: all 0.2s ease;
-  cursor: default;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
   position: relative;
 }
 
-#userList li:hover {
-  background: var(--hover-bg);
+#userList li:last-child {
+  border-bottom: none;
 }
 
-/* 状态指示器样式 */
+.user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-ip {
+  font-size: 0.8em;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .status-indicator {
   width: 8px;
   height: 8px;
   border-radius: 50%;
+  background-color: #ccc;
   flex-shrink: 0;
 }
 
-/* 连接状态样式 */
-li.connected .status-indicator {
-  background-color: var(--success-color);
-  box-shadow: 0 0 4px var(--success-color);
+.connected .status-indicator {
+  background-color: #4CAF50;
 }
 
-li.connecting .status-indicator {
-  background-color: var(--warning-color);
-  box-shadow: 0 0 4px var(--warning-color);
-  animation: pulse 1.5s infinite;
+.connecting .status-indicator {
+  background-color: #FFC107;
+  animation: pulse 1s infinite;
 }
 
-li.disconnected .status-indicator {
-  background-color: var(--text-muted);
-  box-shadow: 0 0 4px var(--text-muted);
+.disconnected .status-indicator {
+  background-color: #9E9E9E;
 }
 
-li.failed .status-indicator {
-  background-color: var(--danger-color);
-  box-shadow: 0 0 4px var(--danger-color);
+.failed .status-indicator {
+  background-color: #F44336;
 }
 
-/* 用户名称样式 */
-.user-name {
-  flex: 1;
-  font-weight: 500;
-  color: var(--text-color);
+@keyframes pulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+}
+
+.connection-status {
+  font-size: 0.8em;
+  color: #666;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.edit-user-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.edit-user-btn:hover {
+  opacity: 1;
+}
+
+.self-user {
+  background-color: #f8f9fa;
 }
 
 /* 连接状态文本样式 */
@@ -504,22 +556,6 @@ li.connecting .connection-status {
 
 li.failed .connection-status {
   color: var(--danger-color);
-}
-
-/* 状态指示器动画 */
-@keyframes pulse {
-  0% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.5;
-    transform: scale(1.1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /* 无用户时的样式 */

@@ -9,6 +9,7 @@ import {
   updateConnectionState,
   connectionAttempts 
 } from './connectionState.js';
+import { io } from './io.js';
 
 // 在文件开头添加默认房间常量
 const DEFAULT_ROOM = 'public';
@@ -43,7 +44,10 @@ socket.on('room-joined', ({ roomId, members }) => {
   onlineUsers.clear();
   members.forEach(member => {
     if (member.userId) {
-      onlineUsers.set(member.id, member.userId);
+      onlineUsers.set(member.id, {
+        userId: member.userId,
+        ip: member.ip || 'unknown'
+      });
     }
   });
   
@@ -93,7 +97,10 @@ socket.on('room-users-updated', (members) => {
   onlineUsers.clear();
   members.forEach(member => {
     if (member.userId) {
-      onlineUsers.set(member.id, member.userId);
+      onlineUsers.set(member.id, {
+        userId: member.userId,
+        ip: member.ip || 'unknown'
+      });
       console.log(`在线用户: ${member.userId} (${member.id})`);
     }
   });
@@ -102,15 +109,18 @@ socket.on('room-users-updated', (members) => {
   updateUserList(members);
 });
 
-socket.on('user-connected', ({ id, userId }) => {
+socket.on('user-connected', ({ id, userId, ip }) => {
   if (!userId) {
     console.warn('检测到未知用户尝试连接:', id);
     return;
   }
   
-  console.log(`新用户 ${userId} (${id}) 加入`);
+  console.log(`新用户 ${userId} (${id}) 加入，IP: ${ip}`);
   displayMessage(`系统: 用户 ${userId} 已加入房间`, 'system');
-  onlineUsers.set(id, userId);
+  onlineUsers.set(id, {
+    userId,
+    ip: ip || 'unknown'
+  });
   
   // 只为有效用户创建连接
   updateConnectionState(id, ConnectionState.CONNECTING, {
@@ -132,8 +142,8 @@ socket.on('user-connected', ({ id, userId }) => {
 socket.on('user-disconnected', (id) => {
   const disconnectedUserId = onlineUsers.get(id);
   if (disconnectedUserId) {
-    console.log(`用户断开: ${disconnectedUserId} (${id})`);
-    displayMessage(`系统: 用户 ${disconnectedUserId} 已离开`, 'system');
+    console.log(`用户断开: ${disconnectedUserId.userId} (${id})`);
+    displayMessage(`系统: 用户 ${disconnectedUserId.userId} 已离开`, 'system');
     
     if (peerConnections.has(id)) {
       const { pc } = peerConnections.get(id);
@@ -263,4 +273,81 @@ function leaveRoom() {
     };
     document.getElementById('messages').appendChild(rejoinBtn);
   }
-} 
+}
+
+// 修改连接处理
+io.on('connection', (socket) => {
+  const clientIp = getClientIp(socket);
+  console.log(`新连接: ${socket.id} (IP: ${clientIp})`);
+
+  // 加入房间处理
+  socket.on('join-room', (roomId) => {
+    try {
+      if (!roomId) {
+        return socket.emit('error', 'Room ID cannot be empty');
+      }
+
+      const userId = socket.handshake.query.userId;
+      if (!userId) {
+        return socket.emit('error', 'User ID cannot be empty');
+      }
+
+      // 离开之前的房间
+      if (socket.room) {
+        socket.leave(socket.room);
+        rooms.get(socket.room)?.delete(socket.id);
+      }
+
+      socket.join(roomId);
+      socket.room = roomId;
+
+      if (!addUserToRoom(socket, roomId, userId)) {
+        return socket.emit('error', 'Failed to join room');
+      }
+
+      // 存储用户IP信息
+      const userInfo = {
+        userId,
+        roomId,
+        ip: clientIp
+      };
+      users.set(socket.id, userInfo);
+
+      const members = getRoomMembers(roomId);
+
+      // 发送加入成功消息给新用户
+      socket.emit('room-joined', {
+        roomId,
+        members: members.map(member => ({
+          ...member,
+          ip: users.get(member.id)?.ip
+        }))
+      });
+
+      // 广播给所有用户更新后的用户列表
+      io.in(roomId).emit('room-users-updated', members.map(member => ({
+        ...member,
+        ip: users.get(member.id)?.ip
+      })));
+
+      // 通知其他用户有新用户加入
+      socket.to(roomId).emit('user-connected', {
+        id: socket.id,
+        userId,
+        ip: clientIp
+      });
+
+      console.log(`用户加入房间:`, {
+        userId,
+        roomId,
+        ip: clientIp,
+        socketId: socket.id
+      });
+    } catch (error) {
+      console.error('Error in join-room:', error);
+      socket.emit('error', 'Internal server error');
+    }
+  });
+
+  // ... existing code ...
+}); 

@@ -4,7 +4,7 @@ import { socket, onlineUsers } from './socket.js';
 import { formatSize, formatSpeed } from './utils.js';
 import { reconnect } from './webrtc.js';
 import { sendFile, acceptFileTransfer } from './fileTransfer.js';
-import { fileChunkSize, TransferState } from './config.js';
+import { FILE_CONFIG, TransferState } from './config.js';
 import { ongoingTransfers } from './fileTransfer.js';
 
 let sidebarCollapsed = false;
@@ -16,6 +16,12 @@ let lastSystemMessage = {
   count: 0,
   timer: null
 };
+
+// 添加错误显示函数
+export function showError(message) {
+  console.error(message);
+  displayMessage(`系统: ${message}`, 'system');
+}
 
 function toggleSidebar() {
   const sidebar = document.querySelector('.sidebar');
@@ -159,7 +165,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const fileId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const chunks = Math.ceil(file.size / fileChunkSize);
+        const chunks = Math.ceil(file.size / FILE_CONFIG.chunkSize);
 
         ongoingTransfers[fileId] = {
           file,
@@ -264,20 +270,24 @@ export function updateUIState() {
   }
 
   // 更新用户列表，同时显示连接和数据通道状态
-  updateUserList(Array.from(onlineUsers.entries()).map(([id, userId]) => {
+  const userList = Array.from(onlineUsers.entries()).map(([id, userData]) => {
     const connection = peerConnections.get(id);
     return {
       id,
-      userId,
+      userId: userData.userId || userData, // 兼容旧格式
+      ip: userData.ip || 'unknown',
       connectionState: connection?.pc.connectionState || 'new',
       dataChannelState: connection?.dataChannel?.readyState || 'closed'
     };
-  }));
+  });
+  
+  updateUserList(userList);
 
   // 更新用户ID显示
   const userIdText = document.getElementById('userIdText');
   if (userIdText && socket.id) {
-    userIdText.textContent = onlineUsers.get(socket.id) || socket.id;
+    const userData = onlineUsers.get(socket.id);
+    userIdText.textContent = userData?.userId || userData || socket.id;
   }
 }
 
@@ -584,10 +594,13 @@ export function updateUserList(users) {
             </svg>
         `;
         
-        // 添加用户名称
-        const userSpan = document.createElement('span');
-        userSpan.className = 'user-name';
-        userSpan.textContent = currentUser.userId + ' (我)';
+        // 添加用户名称和IP
+        const userInfo = document.createElement('div');
+        userInfo.className = 'user-info';
+        userInfo.innerHTML = `
+            <span class="user-name">${currentUser.userId} (我)</span>
+            <span class="user-ip">${currentUser.ip}</span>
+        `;
         
         // 添加状态文本
         const statusText = document.createElement('span');
@@ -597,7 +610,7 @@ export function updateUserList(users) {
         // 组装元素
         li.appendChild(statusIndicator);
         li.appendChild(editButton);
-        li.appendChild(userSpan);
+        li.appendChild(userInfo);
         li.appendChild(statusText);
         
         // 添加编辑功能
@@ -656,10 +669,13 @@ export function updateUserList(users) {
         const statusIndicator = document.createElement('span');
         statusIndicator.className = 'status-indicator';
         
-        // 添加用户名称
-        const userSpan = document.createElement('span');
-        userSpan.className = 'user-name';
-        userSpan.textContent = user.userId;
+        // 添加用户名称和IP
+        const userInfo = document.createElement('div');
+        userInfo.className = 'user-info';
+        userInfo.innerHTML = `
+            <span class="user-name">${user.userId}</span>
+            <span class="user-ip">${user.ip}</span>
+        `;
         
         // 添加状态文本
         const statusText = document.createElement('span');
@@ -681,7 +697,7 @@ export function updateUserList(users) {
         
         // 组装元素
         li.appendChild(statusIndicator);
-        li.appendChild(userSpan);
+        li.appendChild(userInfo);
         li.appendChild(statusText);
         userList.appendChild(li);
     });
